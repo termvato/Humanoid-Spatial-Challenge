@@ -31,3 +31,9 @@
 - Measure Isaac render throughput on the laptop first. If the dataset needs > ~6 h of rendering, add the PC as a render worker.
 - How: keep Windows (Isaac Sim 5.1 supports it; installing Linux plus the driver pinning costs hours), OpenSSH server + Tailscale so it is reachable off the home network.
 - Don't install Linux on it for this project.
+
+## D8. Accept deep-research revisions, provisionally (2026-10-11)
+- Path: fork SceneDiff, extend with 3D boxes, 3-state (changed/unchanged/unobserved) map, learned verifier that must beat SceneDiff thresholds on its test split, costmap delta.
+- Reconstruction default pi3X or DA3 (not VGGT). Keyless default = SAM 2 + DINOv2 unless S4 says otherwise.
+- Isaac role (dataset vs robot demo) and co-training decided by spikes S1-S4 in docs/spikes.md.
+- User: "what matters is the true best decision", not his earlier choices.
