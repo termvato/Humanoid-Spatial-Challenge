@@ -81,3 +81,13 @@ def test_grid_index_outside_is_minus_one():
     g = _grid()
     assert g.index(np.array([[10.0, 0, 0]]))[0] == -1
     assert _at(g, -1.0, -1.0, 0.5) == 0
+
+
+def test_components_merge_joins_nearby_fragments():
+    shape = (12, 4, 4)
+    m = np.zeros(shape, bool)
+    m[0:3, 1, 1] = True
+    m[5:8, 1, 1] = True  # 2-voxel gap from the first
+    assert len(components(m.ravel(), shape, min_voxels=1)) == 2
+    merged = components(m.ravel(), shape, min_voxels=1, merge=2)
+    assert len(merged) == 1 and len(merged[0]) == 6  # only original voxels are returned

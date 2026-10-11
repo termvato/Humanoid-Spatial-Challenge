@@ -42,6 +42,10 @@ class Grid:
         idx = np.stack(np.meshgrid(*[np.arange(n) for n in self.shape], indexing="ij"), -1)
         return self.origin + idx.reshape(-1, 3) * self.size
 
+    def centres_of(self, flat: np.ndarray) -> np.ndarray:
+        """Centres of the given flat voxel indices."""
+        return self.origin + np.stack(np.unravel_index(flat, self.shape), axis=1) * self.size
+
     def index(self, points: np.ndarray) -> np.ndarray:
         """Flat voxel index of each point, -1 if outside the grid."""
         ijk = np.round((points - self.origin) / self.size).astype(int)
@@ -57,11 +61,12 @@ def observe(
     K: np.ndarray,
     T_wc: np.ndarray,
     tau: float = 0.05,
-    conf: np.ndarray | None = None,
-    min_conf: int = 2,
-    max_depth: float = 5.0,
+    valid: np.ndarray | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Boolean (hit, free) per voxel centre for one depth frame (OpenCV camera axes)."""
+    """Boolean (hit, free) per voxel centre for one depth frame (OpenCV camera axes).
+
+    `valid` masks depth pixels to trust (confidence, range, edges); default: depth > 0.
+    """
     R, t = T_wc[:3, :3], T_wc[:3, 3]
     pc = (centres - t) @ R  # world -> camera: R^T (x - t), written for row vectors
     z = pc[:, 2]
@@ -74,12 +79,12 @@ def observe(
     inside = (u >= 0) & (u < w) & (v >= 0) & (v < h)
     sel = np.flatnonzero(front)[inside]
     d = depth[v[inside], u[inside]]
-    valid = (d > 0) & (d <= max_depth)
-    if conf is not None:
-        valid &= conf[v[inside], u[inside]] >= min_conf
+    ok = d > 0
+    if valid is not None:
+        ok &= valid[v[inside], u[inside]]
     zs = z[sel]
-    hit[sel] = valid & (np.abs(zs - d) <= tau)
-    free[sel] = valid & (zs < d - tau)
+    hit[sel] = ok & (np.abs(zs - d) <= tau)
+    free[sel] = ok & (zs < d - tau)
     return hit, free
 
 
@@ -106,10 +111,17 @@ def compare(before: np.ndarray, after: np.ndarray, shape: tuple[int, int, int]) 
     return out
 
 
-def components(mask: np.ndarray, shape: tuple[int, int, int], min_voxels: int = 10) -> list[np.ndarray]:
-    """Connected components (26-neighbour) of a flat mask, as arrays of flat indices, largest first."""
-    lab, n = ndimage.label(mask.reshape(shape), structure=np.ones((3, 3, 3)))
-    flat = lab.ravel()
+def components(mask: np.ndarray, shape: tuple[int, int, int], min_voxels: int = 10,
+               merge: int = 0) -> list[np.ndarray]:
+    """Connected components (26-neighbour) of a flat mask, as arrays of flat indices, largest first.
+
+    merge > 0: voxels within `merge` voxels of each other belong to one component
+    (label the dilated mask, keep only original voxels).
+    """
+    m = mask.reshape(shape)
+    grown = ndimage.binary_dilation(m, iterations=merge) if merge > 0 else m
+    lab, n = ndimage.label(grown, structure=np.ones((3, 3, 3)))
+    flat = np.where(m, lab, 0).ravel()
     order = np.argsort(flat)
     bounds = np.searchsorted(flat[order], np.arange(1, n + 2))
     comps = [order[bounds[i] : bounds[i + 1]] for i in range(n)]

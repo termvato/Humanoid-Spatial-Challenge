@@ -30,3 +30,10 @@ addopts = "-p no:launch_testing -p no:launch_ros -p no:ament_copyright -p no:ame
 
 [tool.ruff]
 line-length = 110
+
+[dependency-groups]
+gpu = [
+    "segment-anything>=1.0",
+    "torch>=2.14.1",
+    "torchvision>=0.29.1",
+]

@@ -214,6 +214,81 @@ def predict_own(pair: str, resample: int = 90) -> str:
     return str(out)
 
 
+RECON = VOL / "outputs" / "recon"
+
+
+@app.function(
+    gpu="A100-40GB", cpu=8.0, memory=32768,
+    volumes={"/vol": vol, "/root/.cache/huggingface": hf_cache},
+    timeout=3600,
+)
+def reconstruct(scene_dir: str, name: str, stride: int = 10) -> str:
+    """pi3 on every `stride`-th frame of both videos jointly: one shared frame, no registration.
+
+    Writes RECON/<name>.npz with, per frame: depth (z of pi3 local points), conf
+    (sigmoid), K (SceneDiff's focal recovery), T_wc (pi3 camera-to-world, OpenCV),
+    rgb at model resolution, video id (1/2) and source frame index. Scale is pi3's
+    (arbitrary but shared by both videos).
+    """
+    import sys
+
+    import numpy as np
+    import torch
+
+    sys.path.insert(0, REPO)
+    from modules.geometry_model import GeometryModel
+    from utils import load_images_as_tensor_from_list, process_video_to_frames
+
+    d = Path(scene_dir)
+    videos = sorted(x for x in d.iterdir() if x.suffix.lower() in (".mp4", ".mov"))
+    files, vid, src = [], [], []
+    for v in (1, 2):
+        fd = d / f"video{v}_frames"
+        if not fd.exists():
+            process_video_to_frames(str(videos[v - 1]), str(fd))
+        fl = sorted(fd.glob("*.jpg"))
+        idx = list(range(0, len(fl), stride))
+        files += [fl[i] for i in idx]
+        vid += [v] * len(idx)
+        src += idx
+    vol.commit()
+    images = load_images_as_tensor_from_list(files)[None].cuda()
+    H, W = images.shape[-2:]
+    gm = GeometryModel({"models": {"pi3": {"name": "yyfz233/Pi3"}}})
+    gm._load_pi3_model()
+    res = gm.estimate_depth_and_poses(images)
+    K = gm.compute_intrinsics(res, files, H, W)[0]
+    out = {
+        "depth": res["local_points"][0, ..., 2].float().cpu().numpy().astype(np.float16),
+        "conf": res["depth_conf"][0].float().cpu().numpy().astype(np.float16),
+        "K": K.float().cpu().numpy(),
+        "T_wc": res["poses"][0].float().cpu().numpy(),
+        "rgb": (images[0].permute(0, 2, 3, 1).cpu().numpy() * 255).astype(np.uint8),
+        "video": np.array(vid), "src": np.array(src), "stride": stride,
+        "peak_mem_gb": torch.cuda.max_memory_allocated() / 1e9,
+    }
+    RECON.mkdir(parents=True, exist_ok=True)
+    np.savez_compressed(RECON / f"{name}.npz", **out)
+    vol.commit()
+    hf_cache.commit()
+    return f"{name}: {len(files)} frames {H}x{W}, peak {out['peak_mem_gb']:.1f} GB"
+
+
+@app.local_entrypoint()
+def recon(scenes: str = "", own: str = "", stride: int = 10) -> None:
+    """Comma-separated benchmark scenes and/or own pairs, reconstructed in parallel."""
+    jobs = [(str(BENCH / "data" / s), s) for s in scenes.split(",") if s]
+    jobs += [(str(OWN / p), p) for p in own.split(",") if p]
+    for r in reconstruct.starmap([(d, n, stride) for d, n in jobs]):
+        print(r)
+
+
+@app.local_entrypoint()
+def evalpred(tag: str, scenes: str) -> None:
+    """Official evaluator on predictions already uploaded to /vol/outputs/<tag>/pred."""
+    print(evaluate.remote(scenes.split(","), tag))
+
+
 @app.local_entrypoint()
 def own(pair: str = "pair01", resample: int = 90) -> None:
     print(predict_own.remote(pair, resample))
@@ -225,3 +300,16 @@ def spike(n: int = 5, tag: str = "s1", start: int = 0) -> None:
     print("scenes:", scenes)
     predict.remote(scenes, tag)
     print(evaluate.remote(scenes, tag))
+
+
+@app.local_entrypoint()
+def val_list() -> None:
+    print(",".join(list_val_varied.remote()))
+
+
+@app.local_entrypoint()
+def baseline(scenes: str, tag: str) -> None:
+    """SceneDiff default config on a comma-separated scene list, then the official evaluator."""
+    s = scenes.split(",")
+    predict.remote(s, tag)
+    print(evaluate.remote(s, tag))
