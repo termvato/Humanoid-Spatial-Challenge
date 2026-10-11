@@ -13,3 +13,8 @@
 - Requirement: several labelled real pairs, split train/test by room. The demo videos must be in the real TEST split.
 - Experiment: sim-only vs real-only vs sim+real (ratio sweep), scored on held-out real pairs.
 - User agreed: use state-of-the-art pretrained models, no reinventing.
+
+## I3. 3RScan as backup source of real 3D ground truth (2026-10-11)
+- 1,482 RGB-D rescans of 478 indoor scenes; per-object rigid transforms for changed objects, removed lists, consistent instance IDs, camera poses.
+- Access: user fills "3RScan Terms of Use" form https://forms.gle/NvL5dvB4tSFrHfQH6 (questions: 3RScan@googlegroups.com). Requested by user 2026-10-11; approval time unknown.
+- Use if: we need real 3D localisation GT, or SceneDiff val is too small for the heads. Not phone video (Tango RGB-D), so a domain gap of its own.
