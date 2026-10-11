@@ -9,7 +9,8 @@ Start here. Every other doc is linked from this page. Update the status board at
 | S1 SceneDiff on 5 val pairs (Modal) | **PASS**: fork SceneDiff; 7 TP, 30 FP, 6 FN | cut SAM cost before scaling | Claude |
 | S2 own phone pair | **borderline**: 3 of 6 found (2 fully right), 4 false alarms; pipeline viable | superseded by S6 | done |
 | S6 keyframes (coverage x sharpness x no-finger) | **FAIL**: same 3 of 6, 7 false alarms; frame choice not the bottleneck | keep uniform; finger filter kept | done |
-| S8 geometric veto: LiDAR map vetoes SceneDiff FPs | proposed | user decision | user |
+| S8 geometric veto: LiDAR map vetoes SceneDiff FPs | parked until pair02 | run on pair02 | Claude |
+| pair02 capture (better hygiene, same lighting) | user recording | run SceneDiff + S7 map on it | user |
 | S7 LiDAR 3-state change map | **works**: suitcase move found in 3D, blanket partial, hat = unobserved; 2 edge FPs | fuse with SceneDiff (head A) | Claude |
 | S3 Isaac render speed | **PASS** 9.4 fps, 4.4 GB | none | done |
 | S4 keyless vs gated models | blocked on S1 | run after S1 | Claude |
