@@ -59,7 +59,8 @@ def main() -> None:
     ap.add_argument("--cols", type=int, default=4)
     args = ap.parse_args()
 
-    gt = pickle.loads((args.pair_dir / "segments.pkl").read_bytes())
+    gt_path = args.pair_dir / "segments.pkl"  # absent for our own captures
+    gt = pickle.loads(gt_path.read_bytes()) if gt_path.exists() else {"objects": []}
     objs = gt["objects"]
     pred = pickle.loads((args.pred / "object_masks.pkl").read_bytes()) if args.pred else None
 
@@ -78,7 +79,7 @@ def main() -> None:
             img = cv2.imread(str(frames[f]))
             gt_masks = []
             for i, o in enumerate(objs):
-                seg = gt[f"video{v}_objects"].get(o["original_obj_idx"], {}).get(str(f))
+                seg = gt.get(f"video{v}_objects", {}).get(o["original_obj_idx"], {}).get(str(f))
                 if seg is not None:
                     gt_masks.append((decode(seg), COLOURS[change_type(o)], ""))
             img = overlay(img, gt_masks, fill=True)
