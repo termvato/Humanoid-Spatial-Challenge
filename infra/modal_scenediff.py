@@ -93,8 +93,9 @@ DINOV3_FILES = {
 
 @data_app.function(
     volumes={"/vol": vol}, timeout=3600, cpu=2,
-    secrets=[modal.Secret.from_dotenv(os.path.expanduser("~/.config/spatial-project/dinov3.env"))]
-    if os.path.exists(os.path.expanduser("~/.config/spatial-project/dinov3.env")) else [],
+    # Named secret, created once with:
+    # modal secret create dinov3 --from-dotenv ~/.config/spatial-project/dinov3.env
+    secrets=[modal.Secret.from_name("dinov3")],
 )
 def fetch_weights() -> None:
     """Copy DINOv3 weights from signed links (they expire) into the volume, once."""
