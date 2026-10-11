@@ -26,3 +26,8 @@
 ## D6. Compute: cloud for heavy models, no Jetson (2026-10-11)
 - A Jetson is an on-robot inference device, slower than the RTX 4070 laptop, so it is no help for training or offline reconstruction. Spend goes to Modal.
 - Big models (reconstruction, SAM 3, large VLMs) run on Modal A100/H100; laptop runs Isaac Sim rendering and small-head training.
+
+## D7. RTX 3080 Windows PC: deferred, add only if rendering is the bottleneck (2026-10-11)
+- Measure Isaac render throughput on the laptop first. If the dataset needs > ~6 h of rendering, add the PC as a render worker.
+- How: keep Windows (Isaac Sim 5.1 supports it; installing Linux plus the driver pinning costs hours), OpenSSH server + Tailscale so it is reachable off the home network.
+- Don't install Linux on it for this project.
