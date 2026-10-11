@@ -181,25 +181,42 @@ OWN = VOL / "own"  # our own captures, one folder per pair with original_video{1
     volumes={"/vol": vol, "/root/.cache/huggingface": hf_cache},
     timeout=2 * 3600,
 )
-def predict_own(pair: str) -> str:
-    """Run SceneDiff on one of our own pairs uploaded to /vol/own/<pair>."""
+def predict_own(pair: str, resample: int = 90) -> str:
+    """Run SceneDiff on one of our own pairs uploaded to /vol/own/<pair>.
+
+    `resample` = keep 1 of every N frames at 30 fps. Benchmark videos are ~14 s
+    and give ~14 frames at N=30; our ~40 s videos need N=90 for the same count.
+    At N=30 (40 frames per video) stage 7 asked for 38.7 GB and ran out of memory.
+    Changing N invalidates SceneDiff's per-pair SAM cache (sam_masks.pkl), so the
+    cache is deleted when N differs from the last run.
+    """
     _set_dinov3_weights()
+    cfg = Path(REPO) / "configs" / "scenediff_config.yml"
+    cfg.write_text(cfg.read_text().replace("resample_rate: 30", f"resample_rate: {resample}"))
+    pair_dir = OWN / pair
+    stamp = pair_dir / "resample.txt"
+    if stamp.exists() and stamp.read_text().strip() != str(resample):
+        for f in pair_dir.glob("*.pkl"):
+            f.unlink()
+    stamp.write_text(str(resample))
     _workspace([pair], data_root=OWN)
     out = VOL / "outputs" / "own" / pair
     out.mkdir(parents=True, exist_ok=True)
-    subprocess.run(
-        ["python", "scripts/predict_multiview.py", "--config", "configs/scenediff_config.yml",
-         "--splits", "val", "--sets", "varied", "--output_dir", str(out)],
-        cwd=REPO, check=True,
-    )
-    vol.commit()  # keeps extracted frames and SAM cache next to the videos
-    hf_cache.commit()
+    try:
+        subprocess.run(
+            ["python", "scripts/predict_multiview.py", "--config", "configs/scenediff_config.yml",
+             "--splits", "val", "--sets", "varied", "--output_dir", str(out)],
+            cwd=REPO, check=True,
+        )
+    finally:
+        vol.commit()  # keep extracted frames and SAM cache even if a later stage fails
+        hf_cache.commit()
     return str(out)
 
 
 @app.local_entrypoint()
-def own(pair: str = "pair01") -> None:
-    print(predict_own.remote(pair))
+def own(pair: str = "pair01", resample: int = 90) -> None:
+    print(predict_own.remote(pair, resample))
 
 
 @app.local_entrypoint()
