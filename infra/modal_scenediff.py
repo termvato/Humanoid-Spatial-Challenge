@@ -65,7 +65,7 @@ def download() -> None:
     print(sorted(p.name for p in VOL.iterdir()))
 
 
-def _workspace(scenes: list[str]) -> Path:
+def _workspace(scenes: list[str], data_root: Path = BENCH / "data") -> Path:
     """Repo-relative `data/` dir whose split files list only `scenes`.
 
     Both SceneDiff scripts read data/scenediff_benchmark/{data,splits}, and the
@@ -75,7 +75,7 @@ def _workspace(scenes: list[str]) -> Path:
     ws = Path(REPO) / "data" / "scenediff_benchmark"
     ws.mkdir(parents=True, exist_ok=True)
     if not (ws / "data").exists():
-        (ws / "data").symlink_to(BENCH / "data")
+        (ws / "data").symlink_to(data_root)
     (ws / "splits").mkdir(exist_ok=True)
     subset = {"varied": scenes, "kitchen": []}
     for name in ("val_split.json", "test_split.json"):
@@ -169,6 +169,37 @@ def smoke() -> None:
 @app.function(volumes={"/vol": vol})
 def list_val_varied() -> list[str]:
     return json.loads((BENCH / "splits" / "val_split.json").read_text())["varied"]
+
+
+OWN = VOL / "own"  # our own captures, one folder per pair with original_video{1,2}.mp4
+
+
+@app.function(
+    gpu="A100-40GB",
+    cpu=8.0,
+    memory=32768,
+    volumes={"/vol": vol, "/root/.cache/huggingface": hf_cache},
+    timeout=2 * 3600,
+)
+def predict_own(pair: str) -> str:
+    """Run SceneDiff on one of our own pairs uploaded to /vol/own/<pair>."""
+    _set_dinov3_weights()
+    _workspace([pair], data_root=OWN)
+    out = VOL / "outputs" / "own" / pair
+    out.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        ["python", "scripts/predict_multiview.py", "--config", "configs/scenediff_config.yml",
+         "--splits", "val", "--sets", "varied", "--output_dir", str(out)],
+        cwd=REPO, check=True,
+    )
+    vol.commit()  # keeps extracted frames and SAM cache next to the videos
+    hf_cache.commit()
+    return str(out)
+
+
+@app.local_entrypoint()
+def own(pair: str = "pair01") -> None:
+    print(predict_own.remote(pair))
 
 
 @app.local_entrypoint()
