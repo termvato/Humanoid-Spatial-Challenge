@@ -121,6 +121,8 @@ def _set_dinov3_weights(model_name: str = "dinov3_vith16plus") -> None:
 
 @app.function(
     gpu="A100-40GB",
+    cpu=8.0,  # SAM automatic mask post-processing is CPU-heavy; default is a fraction of a core
+    memory=32768,
     volumes={"/vol": vol, "/root/.cache/huggingface": hf_cache},
     timeout=4 * 3600,
 )
@@ -170,8 +172,8 @@ def list_val_varied() -> list[str]:
 
 
 @app.local_entrypoint()
-def spike(n: int = 5, tag: str = "s1") -> None:
-    scenes = list_val_varied.remote()[:n]
+def spike(n: int = 5, tag: str = "s1", start: int = 0) -> None:
+    scenes = list_val_varied.remote()[start:start + n]
     print("scenes:", scenes)
     predict.remote(scenes, tag)
     print(evaluate.remote(scenes, tag))
