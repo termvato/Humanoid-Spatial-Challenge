@@ -195,7 +195,7 @@ def predict_own(pair: str, resample: int = 90) -> str:
     cfg.write_text(cfg.read_text().replace("resample_rate: 30", f"resample_rate: {resample}"))
     pair_dir = OWN / pair
     stamp = pair_dir / "resample.txt"
-    if stamp.exists() and stamp.read_text().strip() != str(resample):
+    if not stamp.exists() or stamp.read_text().strip() != str(resample):  # unknown or stale cache
         for f in pair_dir.glob("*.pkl"):
             f.unlink()
     stamp.write_text(str(resample))
