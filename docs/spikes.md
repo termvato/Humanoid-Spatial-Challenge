@@ -11,6 +11,7 @@ Each spike has a pass/fail rule written BEFORE running it, so the result decides
 | S5 | Which reconstruction model? | pi3X vs DA3 poses on S2 pair, scored against ARKit (ATE after Sim(3)) | Lowest ATE wins default | ~$1, day 2 |
 | S6 | Does frame choice fix S2's misses? | Rerun SceneDiff on pair01 with 14 keyframes per video chosen by LiDAR coverage x sharpness x no-finger (same count as S2, only the choice changes). Drop predictions >= 50% inside the finger mask | Finds >= 4 of 6 with <= 4 false alarms -> keyframe selection becomes default. Finds <= 3 -> frame choice is not the bottleneck; keep uniform, look at resolution and lighting | ~$0.25 |
 | S7 | Can LiDAR geometry give a 3-state map? | Voxel carving of both captures after registration | (no rule written in advance; result only) | laptop |
+| S9 | Is 3D-first viable on plain video (D10)? | pi3 jointly on both videos -> S7 carving with model depth. (a) pair01 vs the LiDAR map. (b) the 5 S1 val pairs, 3D blobs projected to 2D masks, official SceneDiff evaluator | (a) suitcase move found (both blobs) with <= 4 false-alarm blobs. (b) obj/sc AP (no type) >= 26 (0.8 x SceneDiff's 32.0) -> 3D-first core. 13-26 -> 3D core plus SceneDiff appearance as a second channel. < 13 -> keep SceneDiff primary, LiDAR-only 3D layer | ~$1 |
 
 ## Results
 
