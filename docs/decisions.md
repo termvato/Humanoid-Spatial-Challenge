@@ -14,3 +14,7 @@
 - Default: local open-vocab models (SAM 3 / Grounding DINO / OWLv2 / CLIP) for labels, template sentences from 3D facts.
 - `--describe claude` flag adds a richer scene description via the Claude API.
 - Why: a reviewer must run the full pipeline with no API key or account.
+
+## D4. Roles: user decides, Claude builds (2026-10-11)
+- User makes design calls and reviews until he can explain each part. Claude writes code, tests, runs jobs.
+- Real data: 6-10 labelled phone pairs, train/test split by room; demo pairs in test split only (from I2).
