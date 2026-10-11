@@ -32,13 +32,14 @@ def sharpness(bgr: np.ndarray) -> float:
     return float(cv2.Laplacian(g, cv2.CV_32F).var())
 
 
-def finger_mask(bgr: np.ndarray, blur_thresh: float = 2.0) -> np.ndarray:
-    """Pixels likely covered by a finger: skin-coloured and out of focus.
+def finger_mask(bgr: np.ndarray, blur_thresh: float = 2.0, min_area: float = 0.01) -> np.ndarray:
+    """Pixels likely covered by a finger: skin-coloured, out of focus, entering from the border.
 
-    A finger on the lens is centimetres away, so it is both skin-toned (YCrCb box
-    from the skin-detection literature) and featureless. Returned at the working
-    resolution; resize to use elsewhere. Heuristic: tuned on pair01, fails on
-    skin-toned blurry objects (a beige wall out of focus can trigger it).
+    A finger on the lens is centimetres away, so it is skin-toned (YCrCb box from
+    the skin-detection literature), featureless, and enters from the image edge.
+    Only connected blobs that touch the border and cover >= `min_area` of the frame
+    are kept; without that, warm-lit walls and wood fired on pair01. Returned at the
+    working resolution. Heuristic, tuned on pair01.
     """
     small = _small(bgr)
     ycc = cv2.cvtColor(small, cv2.COLOR_BGR2YCrCb)
@@ -48,7 +49,14 @@ def finger_mask(bgr: np.ndarray, blur_thresh: float = 2.0) -> np.ndarray:
     flat = cv2.blur(np.abs(cv2.Laplacian(g, cv2.CV_32F)), (15, 15)) < blur_thresh
     m = (skin & flat).astype(np.uint8)
     m = cv2.morphologyEx(m, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))  # drop speckle
-    return m.astype(bool)
+    n, lab, stats, _ = cv2.connectedComponentsWithStats(m, connectivity=8)
+    h, w = m.shape
+    keep = np.zeros(n, bool)
+    for k in range(1, n):
+        x, y, bw, bh, area = stats[k]
+        touches = x == 0 or y == 0 or x + bw == w or y + bh == h
+        keep[k] = touches and area >= min_area * h * w
+    return keep[lab]
 
 
 def quality(sharp: np.ndarray, occluded: np.ndarray, occ_penalty: float = 10.0) -> np.ndarray:
@@ -90,3 +98,11 @@ def select_coverage(seen: list[np.ndarray], q: np.ndarray, n: int, min_gap: int 
         chosen.append(best)
         covered |= sets[best]
     return np.array(sorted(chosen), dtype=int)
+
+
+def inside_fraction(mask: np.ndarray, occluder: np.ndarray) -> float:
+    """Fraction of `mask` pixels that fall inside `occluder` (resized to the mask's shape)."""
+    if not mask.any():
+        return 0.0
+    occ = cv2.resize(occluder.astype(np.uint8), mask.shape[::-1], interpolation=cv2.INTER_NEAREST) > 0
+    return float((mask & occ).sum() / mask.sum())

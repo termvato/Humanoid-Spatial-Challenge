@@ -60,3 +60,22 @@ def test_select_coverage_stops_when_gap_excludes_all():
     seen = [np.array([i]) for i in range(5)]
     picks = select_coverage(seen, np.ones(5), n=5, min_gap=10)
     assert len(picks) == 1
+
+
+def test_inside_fraction_resizes_occluder():
+    from roomdiff.keyframes import inside_fraction
+
+    mask = np.zeros((400, 300), bool)
+    mask[300:, :] = True  # bottom quarter
+    occ = np.zeros((40, 30), bool)
+    occ[35:, :] = True  # bottom eighth, at a lower resolution
+    assert abs(inside_fraction(mask, occ) - 0.5) < 0.02
+    assert inside_fraction(np.zeros((4, 4), bool), occ) == 0.0
+
+
+def test_finger_mask_ignores_blurry_skin_blob_away_from_border():
+    img = _texture()
+    blob = img.copy()
+    cv2.circle(blob, (240, 320), 100, (120, 150, 220), -1)  # centre of the frame
+    blob = np.where(blob == (120, 150, 220), cv2.GaussianBlur(blob, (31, 31), 10), blob)
+    assert finger_mask(blob).mean() < 0.01
