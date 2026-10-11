@@ -18,3 +18,11 @@
 ## D4. Roles: user decides, Claude builds (2026-10-11)
 - User makes design calls and reviews until he can explain each part. Claude writes code, tests, runs jobs.
 - Real data: 6-10 labelled phone pairs, train/test split by room; demo pairs in test split only (from I2).
+
+## D5. Learned components: A (change verifier) and B (object matcher); C (dense change map) only if time (2026-10-11)
+- Both are small heads on frozen foundation-model features; trained on Isaac sim + real pairs; ratio sweep evaluated on held-out real rooms.
+- C only after A and B are evaluated end to end.
+
+## D6. Compute: cloud for heavy models, no Jetson (2026-10-11)
+- A Jetson is an on-robot inference device, slower than the RTX 4070 laptop, so it is no help for training or offline reconstruction. Spend goes to Modal.
+- Big models (reconstruction, SAM 3, large VLMs) run on Modal A100/H100; laptop runs Isaac Sim rendering and small-head training.
