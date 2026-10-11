@@ -1,2 +1,1 @@
-def main() -> None:
-    print("Hello from roomdiff!")
+"""3D change detection between two phone videos of a room."""

@@ -43,7 +43,7 @@ SCENES = {
 def gpu_mem_mib() -> int:
     out = subprocess.run(
         ["nvidia-smi", "--query-gpu=memory.used", "--format=csv,noheader,nounits"],
-        capture_output=True, text=True,
+        capture_output=True, text=True, check=True,
     )
     return int(out.stdout.strip().splitlines()[0])
 
