@@ -7,7 +7,9 @@ Start here. Every other doc is linked from this page. Update the status board at
 | Area | State | Next action | Owner |
 |---|---|---|---|
 | S1 SceneDiff on 5 val pairs (Modal) | **PASS**: fork SceneDiff; 7 TP, 30 FP, 6 FN | cut SAM cost before scaling | Claude |
-| S2 own phone pair | **borderline**: 3 of 6 found (2 fully right), 4 false alarms; pipeline viable | user decision on next step | user |
+| S2 own phone pair | **borderline**: 3 of 6 found (2 fully right), 4 false alarms; pipeline viable | superseded by S6 | done |
+| S6 keyframes (coverage x sharpness x no-finger) | running on Modal | score vs rule | Claude |
+| S7 LiDAR 3-state change map | **works**: suitcase move found in 3D, blanket partial, hat = unobserved; 2 edge FPs | fuse with SceneDiff (head A) | Claude |
 | S3 Isaac render speed | **PASS** 9.4 fps, 4.4 GB | none | done |
 | S4 keyless vs gated models | blocked on S1 | run after S1 | Claude |
 | S5 pi3X vs DA3 vs ARKit poses | blocked on S2 | run after S2 | Claude |
@@ -69,7 +71,12 @@ flowchart LR
 |---|---|
 | `infra/modal_scenediff.py` | SceneDiff on Modal: download, fetch_weights, smoke, predict, evaluate |
 | `spikes/s3_isaac_render.py` | Isaac render benchmark |
-| `src/roomdiff/io/stray.py` | Stray Scanner loader (ARKit -> OpenCV poses, depth, backprojection), 9 tests |
+| `src/roomdiff/io/stray.py` | Stray Scanner loader (poses already OpenCV axes, depth, backprojection), 10 tests |
+| `src/roomdiff/align.py` | register two captures: gravity yaw sweep + FFT shift + 4-DoF ICP, 2 tests |
+| `src/roomdiff/visibility.py` | voxel carving -> removed / added / unchanged / unobserved, 6 tests |
+| `src/roomdiff/keyframes.py` | sharpness, finger mask, window and coverage keyframe selection, 9 tests |
+| `tools/visibility_map.py` | S7 map on a pair: result.json, labels.npz, bev.png, blobs.jpg |
+| `tools/make_keyframe_pair.py`, `tools/filter_occluded.py` | S6 keyframe pair and finger filter |
 | `third_party/` | SceneDiff clone, 3RScan download script (untracked) |
 
 ## Open questions
