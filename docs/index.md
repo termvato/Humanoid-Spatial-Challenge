@@ -7,7 +7,7 @@ Start here. Every other doc is linked from this page. Update the status board at
 | Area | State | Next action | Owner |
 |---|---|---|---|
 | S1 SceneDiff on 5 val pairs (Modal) | **PASS**: fork SceneDiff; 7 TP, 30 FP, 6 FN | cut SAM cost before scaling | Claude |
-| S2 own phone pair | captured (6 changes, strong light change); SceneDiff running | inspect predictions vs ground_truth.json | Claude |
+| S2 own phone pair | **borderline**: 3 of 6 found (2 fully right), 4 false alarms; pipeline viable | user decision on next step | user |
 | S3 Isaac render speed | **PASS** 9.4 fps, 4.4 GB | none | done |
 | S4 keyless vs gated models | blocked on S1 | run after S1 | Claude |
 | S5 pi3X vs DA3 vs ARKit poses | blocked on S2 | run after S2 | Claude |

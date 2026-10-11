@@ -20,7 +20,6 @@ import numpy as np
 from pycocotools import mask as rle
 
 COLOURS = {"removed": (60, 60, 230), "added": (60, 200, 60), "moved": (230, 160, 30)}  # BGR
-RESAMPLE = 30  # SceneDiff predicts on every 30th frame (config dataset.resample_rate)
 
 
 def change_type(obj: dict) -> str:
@@ -57,6 +56,7 @@ def main() -> None:
     ap.add_argument("--pred", type=Path)
     ap.add_argument("--out", type=Path, default=Path("outputs/pair.png"))
     ap.add_argument("--cols", type=int, default=4)
+    ap.add_argument("--resample", type=int, default=30, help="SceneDiff dataset.resample_rate of the run")
     args = ap.parse_args()
 
     gt_path = args.pair_dir / "segments.pkl"  # absent for our own captures
@@ -71,9 +71,9 @@ def main() -> None:
                               for k in pv.get(f"video_{v}", {})})
         if pred_frames:  # show where SceneDiff fired, spread over the video
             idx = np.linspace(0, len(pred_frames) - 1, min(args.cols, len(pred_frames))).astype(int)
-            picks = [pred_frames[i] * RESAMPLE for i in idx]
+            picks = [pred_frames[i] * args.resample for i in idx]
         else:
-            picks = (np.linspace(0, len(frames) - 1, args.cols).astype(int) // RESAMPLE) * RESAMPLE
+            picks = (np.linspace(0, len(frames) - 1, args.cols).astype(int) // args.resample) * args.resample
         tiles = []
         for f in picks:
             img = cv2.imread(str(frames[f]))
@@ -88,7 +88,7 @@ def main() -> None:
                 for oid, per_video in pred.items():
                     if oid in ("H", "W"):
                         continue
-                    hit = per_video.get(f"video_{v}", {}).get(f // RESAMPLE)
+                    hit = per_video.get(f"video_{v}", {}).get(f // args.resample)
                     if hit is not None:
                         pm.append((decode(hit["mask"]), (0, 255, 255), f"P{oid}"))
                 img = overlay(img, pm, fill=False)

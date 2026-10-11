@@ -37,3 +37,21 @@ Each spike has a pass/fail rule written BEFORE running it, so the result decides
 - Follow-up (s1_cpu8, pair 6 `bedroom_2_bedroom_3`, cpu=8): **259 s/pair vs 508 s/pair** average before (SAM 206 s, pi3 12 s, cost map 23 s, voxels 12 s). Different pair, so roughly 2x, not exact. The default fraction-of-a-core CPU was throttling every stage.
 - Cost estimate at ~4.3 min/pair on A100-40GB: ~$0.18/pair. SD-V val 50 ~ $9, SD-V test 150 ~ $27, all 350 ~ $63.
 - Baseline must run at SceneDiff's default config (no SAM shortcuts) to be a fair comparison.
+
+### S2: borderline FAIL on the written rule, pipeline viable (2026-10-11)
+- pair01 (user's room, iPhone, Stray Scanner; strong light change warm -> daylight). SceneDiff default config, resample 90 (14 frames per video, benchmark-matched; 40 frames OOMed at stage 7).
+- Rule was ">= 2 of 3 changes"; scaled to 6 changes = >= 4. Found 3, of which 2 fully correct:
+
+| Change | Result |
+|---|---|
+| little suitcase, moved | found in both videos and matched (correct type) |
+| black pouch, added | found (correct) |
+| blue tool, moved | found only in after -> reported as added (wrong type) |
+| hat, removed (wardrobe top) | missed. No sampled "before" frame shows the wardrobe top clearly: an UNOBSERVED case, not a detector failure |
+| pen, moved (floor) | missed. A few pixels at 518 px input |
+| blanket, removed (on suitcase) | missed. Visible in both videos (v1 frames 1-2, v2 frames 6-7): a genuine miss |
+
+- False alarms: 4. P2 = the user's finger over the lens in before frames 7-9 (capture artifact); P0, P3, P6 = wall and curtain edges (light change).
+- Fail-branch diagnosis (as the rule required): reconstruction and alignment are fine (suitcase matched across sessions). Failures are coverage (hat), object size vs input resolution (pen), appearance under a light change (blanket), and capture hygiene (finger).
+- Implications: (1) uniform 1-in-90 sampling wastes frames; choose keyframes by sharpness and coverage. (2) The hat is the poster case for an explicit "unobserved" output. (3) The verifier (head A) would target the edge and finger false alarms. (4) Capture guide: keep fingers off the lens; pause on each changed area.
+- Artifacts: outputs/s2/pair01.png, outputs/s2/sampled_frames.jpg, outputs/s2/photos_grid.jpg. Cost ~$0.70 including two failed runs.
