@@ -55,3 +55,25 @@ Each spike has a pass/fail rule written BEFORE running it, so the result decides
 - Fail-branch diagnosis (as the rule required): reconstruction and alignment are fine (suitcase matched across sessions). Failures are coverage (hat), object size vs input resolution (pen), appearance under a light change (blanket), and capture hygiene (finger).
 - Implications: (1) uniform 1-in-90 sampling wastes frames; choose keyframes by sharpness and coverage. (2) The hat is the poster case for an explicit "unobserved" output. (3) The verifier (head A) would target the edge and finger false alarms. (4) Capture guide: keep fingers off the lens; pause on each changed area.
 - Artifacts: outputs/s2/pair01.png, outputs/s2/sampled_frames.jpg, outputs/s2/photos_grid.jpg. Cost ~$0.70 including two failed runs.
+- **Correction (2026-10-11, during S6):** the hat WAS seen. Before frames ~600-630 show the hats on the wardrobe, but the finger covers the bottom of the frame from ~590 to ~970 (13 s), and uniform sampling picked exactly those frames. So the hat miss is sampling plus occlusion, not "never observed".
+
+### S7: LiDAR 3-state change map on pair01 (2026-10-11)
+No pass/fail rule was written before running, so this is a result without a verdict.
+- Method (`src/roomdiff/visibility.py`, `align.py`, `tools/visibility_map.py`): register the two LiDAR clouds (gravity-aware yaw sweep with FFT shift + 4-DoF ICP), carve 5 cm voxels with every 5th depth frame (hit / free / unknown), compare: removed, added, unchanged, unobserved. Laptop CPU, 44 s.
+- Bugs found on the way, each fixed with a test:
+  1. Generic 6-DoF FPFH+RANSAC flipped the room (168 deg tilt). Gravity-aware search fixes it.
+  2. Unconstrained ICP tilted 6 deg (floor ~9% of points). 4-DoF ICP fixes it.
+  3. **Stray poses are already OpenCV camera axes.** The ARKit flip in our loader smeared every map (frames 1 s apart disagreed by 18 cm; 2 cm without the flip). Regression test on the real capture added.
+- Result after fixes: registration fitness 0.88 at 5 cm, rmse 2.4 cm. Voxels: 22,706 unchanged, 183 removed, 292 added, 13,141 unobserved.
+
+| Change | LiDAR map |
+|---|---|
+| little suitcase, moved | **found**: removed blob 17 L + added blob 23 L, ~70 cm apart |
+| blanket, removed | partial: 1.0 L removed blob on top of the suitcase (only at min blob 4 voxels) |
+| hat, removed | wardrobe top falls in the **unobserved** band (LiDAR saw little of it in before) |
+| black pouch, added | missed (below blob size / not resolved) |
+| pen, blue tool | missed, far below 5 cm voxels |
+
+- False alarms: 2 at min blob 15 voxels (cornice, wardrobe edge), 9 at min blob 4. All on thin edges.
+- Takeaway: geometry and appearance fail differently. LiDAR catches big objects regardless of lighting and gives honest "unobserved"; SceneDiff (appearance) catches small objects but is fooled by light. Fusing the two is the case for head A.
+- Artifacts: outputs/s7/ (bev.png, blobs.jpg, labels.npz, map.ply, result.json), outputs/s7_min4/.

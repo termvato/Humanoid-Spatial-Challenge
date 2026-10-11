@@ -4,8 +4,11 @@ Format spec: github.com/strayrobots/scanner/blob/main/docs/format.md
 
 Conventions returned by this module:
 - Poses are camera-to-world 4x4 matrices in the OpenCV camera convention
-  (x right, y down, z forward). ARKit stores OpenGL convention (y up, z back),
-  so every pose is converted on load with `arkit_to_opencv`.
+  (x right, y down, z forward). Stray's odometry.csv is already in that
+  convention: applying `arkit_to_opencv` on top smeared pair01 (frames 30 apart
+  disagreed by 18 cm median vs 2 cm without it; docs/spikes.md S7). World axes
+  are ARKit's: +y up (gravity), origin where recording started.
+  `arkit_to_opencv` is kept for raw ARKit transforms from other sources.
 - Intrinsics are per frame, in pixels of the RGB video.
 - Depth is metres, float32, at the LiDAR resolution (192 x 256).
 """
@@ -125,7 +128,7 @@ def load_stray(root: str | Path, rgb_size: tuple[int, int] | None = None) -> Str
         root=root,
         timestamps=odo["timestamp"],
         frames=odo["frame"].astype(int),
-        T_wc=arkit_to_opencv(T_gl),
+        T_wc=T_gl,  # already OpenCV camera axes, see module docstring
         K=K,
         rgb_size=size,
     )

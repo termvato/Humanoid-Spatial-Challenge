@@ -52,9 +52,8 @@ def test_load_new_format_per_frame_intrinsics(tmp_path):
     np.testing.assert_array_equal(cap.frames, [0, 1])
     np.testing.assert_allclose(cap.T_wc[1, :3, 3], [1, 2, 3])
     assert cap.K[1, 0, 0] == 1410 and cap.K[1, 1, 2] == 721
-    # rotation survives the axis flip: R_cv = R_gl @ diag(1,-1,-1)
-    R_gl = Rotation.from_quat(q).as_matrix()
-    np.testing.assert_allclose(cap.T_wc[1, :3, :3], R_gl @ np.diag([1, -1, -1]), atol=1e-12)
+    # Stray poses are used as stored (already OpenCV camera axes)
+    np.testing.assert_allclose(cap.T_wc[1, :3, :3], Rotation.from_quat(q).as_matrix(), atol=1e-12)
 
 
 def test_load_old_format_falls_back_to_camera_matrix(tmp_path):
@@ -112,3 +111,20 @@ def test_backproject_filters_confidence_and_range():
     conf[0, 2] = 1  # low confidence
     pts = backproject(depth, K, np.eye(4), conf=conf, min_conf=2, max_depth=5.0)
     assert len(pts) == 192 * 256 - 3
+
+
+PAIR01 = Path(__file__).parents[1] / "data" / "raw" / "pair01" / "before"
+
+
+@pytest.mark.skipif(not PAIR01.exists(), reason="real capture not present (data/raw is untracked)")
+def test_real_capture_frames_agree_in_world():
+    """Regression for the pose convention: depth from frames 1 s apart must land on the same surfaces."""
+    from scipy.spatial import cKDTree
+
+    cap = load_stray(next(p for p in PAIR01.iterdir() if (p / "odometry.csv").exists()))
+    d = []
+    for i in (100, 500, 900):
+        a, b = (backproject(cap.depth(k), cap.K_depth(k), cap.T_wc[k], cap.confidence(k), max_depth=3.0)
+                for k in (i, i + 30))
+        d.append(np.median(cKDTree(b).query(a[::10])[0]))
+    assert np.median(d) < 0.05
