@@ -6,11 +6,13 @@ Stages (each a Modal function, results persisted in the `scenediff` volume):
   evaluate   CPU   run scripts/evaluate_multiview.py, write metrics to the volume
 
 Usage:
-  uv run modal run infra/modal_scenediff.py::download
-  DINOV3_URL=... uv run modal run infra/modal_scenediff.py::spike --n 5
+  uv run modal run infra/modal_scenediff.py::data_app.download
+  uv run modal run infra/modal_scenediff.py::data_app.fetch_weights   # once; links expire
+  uv run modal run infra/modal_scenediff.py::spike --n 5
   uv run modal volume get scenediff outputs/s1 outputs/
 
-The DINOv3 URL is a signed personal link: pass it via env, never commit it.
+DINOv3 links are signed and personal: they live in ~/.config/spatial-project/dinov3.env
+(outside the repo) and are only used by fetch_weights.
 """
 
 import json
@@ -43,11 +45,13 @@ image = (
 )
 
 app = modal.App("scenediff-s1", image=image)
+# CPU-only data app: usable without a GPU-enabled Modal account.
+data_app = modal.App("scenediff-data", image=image)
 vol = modal.Volume.from_name("scenediff", create_if_missing=True)
 hf_cache = modal.Volume.from_name("hf-cache", create_if_missing=True)
 
 
-@app.function(volumes={"/vol": vol}, timeout=3 * 3600, cpu=4)
+@data_app.function(volumes={"/vol": vol}, timeout=3 * 3600, cpu=4)
 def download() -> None:
     if (BENCH / "splits" / "val_split.json").exists():
         print("benchmark already in volume")
@@ -79,9 +83,38 @@ def _workspace(scenes: list[str]) -> Path:
     return ws
 
 
-def _set_dinov3_url(url: str) -> None:
+WEIGHTS = VOL / "weights"
+DINOV3_FILES = {
+    "DINOV3_VITH16PLUS_URL": "dinov3_vith16plus_pretrain_lvd1689m-7c1da9a5.pth",
+    "DINOV3_VITL16_URL": "dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth",
+    "DINOV3_VITB16_URL": "dinov3_vitb16_pretrain_lvd1689m-73cec8be.pth",
+}
+
+
+@data_app.function(
+    volumes={"/vol": vol}, timeout=3600, cpu=2,
+    secrets=[modal.Secret.from_dotenv(os.path.expanduser("~/.config/spatial-project/dinov3.env"))]
+    if os.path.exists(os.path.expanduser("~/.config/spatial-project/dinov3.env")) else [],
+)
+def fetch_weights() -> None:
+    """Copy DINOv3 weights from signed links (they expire) into the volume, once."""
+    WEIGHTS.mkdir(parents=True, exist_ok=True)
+    for env, name in DINOV3_FILES.items():
+        dst = WEIGHTS / name
+        if dst.exists():
+            print("have", name)
+            continue
+        subprocess.run(["wget", "-q", "-O", str(dst) + ".part", os.environ[env]], check=True)
+        Path(str(dst) + ".part").rename(dst)
+        print("fetched", name, dst.stat().st_size)
+    vol.commit()
+
+
+def _set_dinov3_weights(model_name: str = "dinov3_vith16plus") -> None:
+    """Point the SceneDiff config at a local weight file in the volume."""
+    name = next(f for f in DINOV3_FILES.values() if f.startswith(model_name + "_"))
     cfg = Path(REPO) / "configs" / "scenediff_config.yml"
-    text = cfg.read_text().replace('"TO_BE_FILLED"', json.dumps(url))
+    text = cfg.read_text().replace('"TO_BE_FILLED"', json.dumps(str(WEIGHTS / name)))
     cfg.write_text(text)
 
 
@@ -89,13 +122,9 @@ def _set_dinov3_url(url: str) -> None:
     gpu="A100-40GB",
     volumes={"/vol": vol, "/root/.cache/huggingface": hf_cache},
     timeout=4 * 3600,
-    secrets=[modal.Secret.from_dict({"DINOV3_URL": os.environ.get("DINOV3_URL", "")})],
 )
 def predict(scenes: list[str], tag: str) -> str:
-    url = os.environ["DINOV3_URL"]
-    if not url:
-        raise RuntimeError("DINOV3_URL is empty; request DINOv3 access first")
-    _set_dinov3_url(url)
+    _set_dinov3_weights()
     _workspace(scenes)
     out = VOL / "outputs" / tag / "pred"
     out.mkdir(parents=True, exist_ok=True)
