@@ -16,5 +16,7 @@
 
 ## I3. 3RScan as backup source of real 3D ground truth (2026-10-11)
 - 1,482 RGB-D rescans of 478 indoor scenes; per-object rigid transforms for changed objects, removed lists, consistent instance IDs, camera poses.
-- Access: user fills "3RScan Terms of Use" form https://forms.gle/NvL5dvB4tSFrHfQH6 (questions: 3RScan@googlegroups.com). Requested by user 2026-10-11; approval time unknown.
+- Access GRANTED 2026-10-11. Official download script: gist WaldJohannaU/55f5e35992ea91157b789b15eac4d432 (copy in third_party/3rscan_dl/). Licence CC BY-NC-SA 4.0 (derived data must share alike). Full release ~94 GB; per-scan download possible with --id. Server redirects http -> https.
+- Metadata (data/raw/3rscan/3RScan.json, 3 MB): 478 reference scenes, 1,004 rescans (982 with >= 1 rigid change), 3,323 rigid object moves with 3D transforms, 542 removed, 558 nonrigid. Splits: 385 train / 47 val / 46 test scenes.
+- Versus SceneDiff val (100 pairs, 2D masks): ~10x more pairs, with real 3D motion ground truth. Main candidate if the heads need more or 3D-labelled real data.
 - Use if: we need real 3D localisation GT, or SceneDiff val is too small for the heads. Not phone video (Tango RGB-D), so a domain gap of its own.
