@@ -150,7 +150,8 @@ def evaluate(scenes: list[str], tag: str) -> str:
         cwd=REPO, check=True,
     )
     vol.commit()
-    return (out / "metrics.txt").read_text()
+    # The evaluator appends threshold settings to the file name.
+    return "\n".join(f.read_text() for f in sorted(out.glob("metrics*.txt")))
 
 
 @data_app.function(volumes={"/vol": vol}, cpu=2)

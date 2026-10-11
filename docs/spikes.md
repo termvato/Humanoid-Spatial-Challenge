@@ -18,3 +18,19 @@ Each spike has a pass/fail rule written BEFORE running it, so the result decides
 - The deep-research "8 GB is below the 16 GB minimum" concern does not hold for this workload.
 - Caveats: one stock scene, orbit camera, stock lighting. The real cost is the room generator (placing, moving, adding, removing objects plausibly), not rendering. Whether synthetic data is worth it at all is still decided after S1 (real labelled SceneDiff val pairs exist).
 - Artifacts: outputs/s3/ (result_office.json, rgb_*.png, inst_*.png).
+
+### S1: PASS (2026-10-11)
+- SceneDiff (commit 62dcbd2, default config, DINOv3 ViT-H+) on the first 5 SD-V val pairs, current evaluator (mask IoU matching, dup thresholds 1):
+
+| Metric | Ours, 5 val pairs | Paper, SD-V test |
+|---|---|---|
+| px/im IoU | 18.7 | 39.1 |
+| obj/im AP | 44.6 | 43.8 |
+| obj/sc AP, no change type | 32.0 | 22.8 (older protocol) |
+| obj/sc AP, with change type | **15.8** | n/a |
+
+- Detections: **7 TP, 30 FP, 6 FN** over 13 changed objects. 5 pairs is a tiny sample; treat numbers as ballpark only.
+- Rule met: runs end to end, numbers in the paper's ballpark -> **fork SceneDiff**.
+- Failure profile (what our heads must fix): false positives outnumber true positives 4:1 (target of head A, verifier); requiring the right change type halves AP (target of head B, matcher); about half the changes are missed (recall, not fixable by A or B).
+- Cost: ~8.5 min/pair on A100-40GB. SAM = 79% (2010 of 2540 s), pi3 6%, cost map 6%, voxelisation 8%. SAM output is cached per pair (`sam_masks.pkl`), so it is paid once per pair.
+- Artifacts: outputs/s1/ (log, metrics), Modal volume scenediff:/outputs/s1/pred.

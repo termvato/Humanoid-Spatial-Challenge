@@ -6,7 +6,7 @@ Start here. Every other doc is linked from this page. Update the status board at
 
 | Area | State | Next action | Owner |
 |---|---|---|---|
-| S1 SceneDiff on 5 val pairs (Modal) | running (2nd attempt; env fixed) | read metrics, apply rule | Claude |
+| S1 SceneDiff on 5 val pairs (Modal) | **PASS**: fork SceneDiff; 7 TP, 30 FP, 6 FN | cut SAM cost before scaling | Claude |
 | S2 own phone pair | waiting for capture | film pair01, write down 3 changes | user |
 | S3 Isaac render speed | **PASS** 9.4 fps, 4.4 GB | none | done |
 | S4 keyless vs gated models | blocked on S1 | run after S1 | Claude |
