@@ -9,6 +9,8 @@ Each spike has a pass/fail rule written BEFORE running it, so the result decides
 | S3 | What is Isaac Sim's role? | Render one furnished room on the laptop, headless: fps, VRAM, segmentation quality | >= 5 fps clean instance masks at 640x480 -> synthetic pairs feasible overnight. Else Isaac = robot demo only | 1-2 h |
 | S4 | Keyless cost | Same 5 val pairs with SAM 2 + DINOv2 vs SAM 3 + DINOv3 | Gap < 10% relative -> keyless default. Larger -> gated models default, keyless as fallback | ~$2 |
 | S5 | Which reconstruction model? | pi3X vs DA3 poses on S2 pair, scored against ARKit (ATE after Sim(3)) | Lowest ATE wins default | ~$1, day 2 |
+| S6 | Does frame choice fix S2's misses? | Rerun SceneDiff on pair01 with 14 keyframes per video chosen by LiDAR coverage x sharpness x no-finger (same count as S2, only the choice changes). Drop predictions >= 50% inside the finger mask | Finds >= 4 of 6 with <= 4 false alarms -> keyframe selection becomes default. Finds <= 3 -> frame choice is not the bottleneck; keep uniform, look at resolution and lighting | ~$0.25 |
+| S7 | Can LiDAR geometry give a 3-state map? | Voxel carving of both captures after registration | (no rule written in advance; result only) | laptop |
 
 ## Results
 
