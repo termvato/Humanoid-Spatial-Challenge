@@ -14,3 +14,4 @@ data/raw/
 data/synthetic/
 outputs/
 *.rrd
+third_party/
