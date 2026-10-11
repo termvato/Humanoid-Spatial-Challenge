@@ -79,3 +79,23 @@ No pass/fail rule was written before running, so this is a result without a verd
 - False alarms: 2 at min blob 15 voxels (cornice, wardrobe edge), 9 at min blob 4. All on thin edges.
 - Takeaway: geometry and appearance fail differently. LiDAR catches big objects regardless of lighting and gives honest "unobserved"; SceneDiff (appearance) catches small objects but is fooled by light. Fusing the two is the case for head A.
 - Artifacts: outputs/s7/ (bev.png, blobs.jpg, labels.npz, map.ply, result.json), outputs/s7_min4/.
+
+### S6: FAIL, frame choice is not the bottleneck (2026-10-11)
+- pair01, 14 keyframes per video by LiDAR coverage x sharpness x no-finger (`tools/make_keyframe_pair.py`), SceneDiff default config, resample 1. Finger filter dropped 1 prediction (P5, 90% inside the finger). Modal ~6 min A100, ~$0.25.
+- Keyframes were sharper (mean quality 0.75 vs 0.33 before, 0.74 vs 0.48 after) and showed every changed object at least once, including the hats from both sides.
+
+| Change | S2 (uniform) | S6 (keyframes) |
+|---|---|---|
+| little suitcase, moved | found, matched | found, matched (P2) |
+| black pouch, added | found | found (P10) |
+| blue tool, moved | added only | removed only (P4): still wrong type |
+| hat, removed | missed | **missed, although clearly in view in both videos** |
+| blanket, removed | missed | missed |
+| pen, moved | missed | missed |
+| false alarms | 4 | **7** (P0 bed corner, P1 floor corner, P3 frame edge with an undetected finger, P6 duvet, P7 curtain corner, P8 floor, P9 suitcase fragment) |
+
+- Rule: >= 4 of 6 with <= 4 false alarms. Got 3 of 6 (2 right) with 7. **FAIL: keep uniform sampling as SceneDiff default**; frame choice is not the bottleneck.
+- Second correction on the hat: with clean views from both sides it is still missed, so it is a detector miss (a flat hat on a cluttered top, under a light change), not an observation problem.
+- What did work: the finger filter removed the finger artifact it was built for.
+- Observation for head A: P0, P6 and P8 lie on surfaces the S7 LiDAR map labels unchanged. A geometric veto (reject a 2D change whose 3D voxels are confidently unchanged) would remove them, and LiDAR independently found the blanket. Candidate spike S8.
+- Artifacts: outputs/s6/objects.jpg (one tile per prediction), outputs/s6/pred/, data/scenediff_own/pair01_kf/keyframes.jpg.
