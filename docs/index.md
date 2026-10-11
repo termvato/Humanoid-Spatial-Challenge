@@ -69,7 +69,7 @@ flowchart LR
 |---|---|
 | `infra/modal_scenediff.py` | SceneDiff on Modal: download, fetch_weights, smoke, predict, evaluate |
 | `spikes/s3_isaac_render.py` | Isaac render benchmark |
-| `src/roomdiff/` | our package (empty) |
+| `src/roomdiff/io/stray.py` | Stray Scanner loader (ARKit -> OpenCV poses, depth, backprojection), 9 tests |
 | `third_party/` | SceneDiff clone, 3RScan download script (untracked) |
 
 ## Open questions
