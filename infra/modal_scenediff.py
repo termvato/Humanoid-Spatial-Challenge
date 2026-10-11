@@ -29,7 +29,7 @@ BENCH = VOL / "scenediff_benchmark"
 
 image = (
     modal.Image.debian_slim(python_version="3.10")
-    .apt_install("git", "wget", "unzip", "ffmpeg", "libgl1", "libglib2.0-0")
+    .apt_install("git", "wget", "unzip", "ffmpeg", "libgl1", "libglib2.0-0", "libegl1", "libgomp1", "libx11-6")
     .pip_install(
         "torch==2.5.1", "torchvision==0.20.1",
         index_url="https://download.pytorch.org/whl/cu121",
@@ -151,6 +151,16 @@ def evaluate(scenes: list[str], tag: str) -> str:
     )
     vol.commit()
     return (out / "metrics.txt").read_text()
+
+
+@data_app.function(volumes={"/vol": vol}, cpu=2)
+def smoke() -> None:
+    """Import everything SceneDiff needs, on CPU, before paying for a GPU."""
+    subprocess.run(
+        ["python", "-c", ("import open3d, torch_scatter, segment_anything_ls; "
+         "import sys; sys.path.insert(0, '.'); from modules import SceneDiff; print('imports ok')")],
+        cwd=REPO, check=True,
+    )
 
 
 @app.function(volumes={"/vol": vol})
