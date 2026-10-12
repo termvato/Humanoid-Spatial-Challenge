@@ -30,6 +30,8 @@ Each spike has a pass/fail rule written BEFORE running it, so the result decides
 | S9a | Does the 3D map work from plain video? | PASS | pi3 metric map finds the suitcase with 0 false alarms |
 | S9b | 3D-first vs SceneDiff on the benchmark | middle band | Held-out 18.0 vs SceneDiff 32.0; fusion 33.0. Rule says: 3D core plus SceneDiff as a second channel. 5 pairs too few to rank |
 | S10 | Was Pi3X compared fairly? | pi3 confirmed | Fair confidence cut makes Pi3X worse; full pipeline 28.1 vs pi3 34.3 |
+| S11 | pair02 (corridor, mirror) | strong result | 3D pipeline 4 of 4 + boot correctly unobserved; SceneDiff 3 of 4; LiDAR fooled by the mirror |
+| S12 | Does VGGT-Omega beat pi3? | pi3 stays | Best depth on pair01 (2.0%), but benchmark 13.0 vs pi3 17.9 at the geometry stage |
 | S9e | Full 3D pipeline on our room, plain video | strong result | 5 of 6 changes vs SceneDiff's 3. False alarms on walls above the wardrobe |
 
 Component choices inside the 3D pipeline (tuning pairs, each kept only if it raised AP): finer voxels (median depth/80: 3.5 -> 15.3), robust ICP between videos (+2.6), SAM object outlines (+7.6 with ICP), DINOv2 moved matching (25.5 -> 34.3). Rejected: colour-histogram matching, depth-scaled tolerance, smart keyframes.
@@ -219,6 +221,8 @@ Same frames for every model (every 10th frame, both videos in one call), same lo
 - Final count, pair02. 3D pipeline: 4 of 4 changes + boot unobserved, ~8 false alarms (shadow, bench, 6 small edges). LiDAR: printer only, 4 false alarms (2 mirror, floor, door). SceneDiff: 3 of 4, ~9 false alarms (bench, walls, doors).
 - New failure source: a shadow made a pi3 "added" blob, so the plain-video map is not fully lighting-immune (pi3 depth comes from pixels). The LiDAR map is.
 
-### S12: VGGT-Omega (2026-10-12, in progress)
+### S12: VGGT-Omega, pi3 stays (2026-10-12)
 - Runner `infra/modal_models.py::vggt_omega` (checkpoint vggt_omega_1b_512.pt, gated, HF token in Modal secret `huggingface`). pair01: 243 frames at 592x448, peak 24.4 GB on A100-80GB.
 - (a) pair01 geometry, same scorer as S5: ATE **4.5 cm** (pi3 4.2, Pi3X 3.3), depth AbsRel at one Sim3 scale **0.020** (best of six; Pi3X 0.022, pi3 0.032), Sim3 scale 2.20 (not metric). Change map: suitcase both blobs; 0 false-alarm blobs metric, 5 scale-free (pi3 7, Pi3X 3).
+- (b) 15 tuning pairs, geometry + ICP (obj/sc AP): median/60 6.3, /80 8.2, /110 3.5, /80 with the stricter confidence cut (drop 40%) **13.0**. pi3 at the same stage: 17.9.
+- Rule: geometry < 17.9 -> **stop, pi3 stays.** Best depth on pair01 does not turn into better change detection on the benchmark (same pattern as Pi3X in S10). Cost ~$1.50.
