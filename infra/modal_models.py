@@ -37,12 +37,15 @@ img_vggt = base.run_commands(
     "git clone https://github.com/facebookresearch/vggt /opt/vggt", "pip install -r /opt/vggt/requirements.txt")
 img_da3 = base.pip_install("xformers==0.0.28.post3", index_url="https://download.pytorch.org/whl/cu121").run_commands(
     "git clone https://github.com/ByteDance-Seed/Depth-Anything-3 /opt/da3", "cd /opt/da3 && pip install -e .", "pip install addict omegaconf trimesh imageio")
+img_omega = base.run_commands(
+    "git clone https://github.com/facebookresearch/vggt-omega /opt/vggt_omega",
+    "cd /opt/vggt_omega && pip install -r requirements.txt && pip install -e .")
 img_mapa = base.run_commands(
     "git clone https://github.com/facebookresearch/map-anything /opt/mapa", "cd /opt/mapa && pip install -e .")
 
 app = modal.App("roomdiff-models")
-GPU = dict(gpu="A100-80GB", cpu=8.0, memory=65536, timeout=3600,
-           volumes={"/vol": vol, "/root/.cache/huggingface": hf_cache})
+GPU = {"gpu": "A100-80GB", "cpu": 8.0, "memory": 65536, "timeout": 3600,
+       "volumes": {"/vol": vol, "/root/.cache/huggingface": hf_cache}}
 
 
 def _frames(scene_dir: str, stride: int):
@@ -206,7 +209,7 @@ def mapanything(scene_dir: str, name: str, stride: int = 10) -> str:
     views = load_images(files)
     preds = model.infer(views, memory_efficient_inference=True, use_amp=True, amp_dtype="bf16",
                         apply_mask=True, mask_edges=True)
-    g = lambda k: np.concatenate([p[k].float().cpu().numpy() for p in preds])  # noqa: E731
+    g = lambda k: np.concatenate([p[k].float().cpu().numpy() for p in preds])
     depth = g("depth_z")[..., 0]
     rgb = (np.clip(g("img_no_norm"), 0, 1) * 255).astype(np.uint8) if g("img_no_norm").max() <= 1.0 \
         else g("img_no_norm").astype(np.uint8)
@@ -214,7 +217,36 @@ def mapanything(scene_dir: str, name: str, stride: int = 10) -> str:
                  vid, src, stride, {})
 
 
-FUNCS = {"pi3x": pi3x, "vggt": vggt, "da3": da3, "mapanything": mapanything}
+@app.function(image=img_omega, secrets=[modal.Secret.from_name("huggingface")], **GPU)
+def vggt_omega(scene_dir: str, name: str, stride: int = 10, res: int = 512) -> str:
+    """VGGT-Omega-1B-512 (gated, CC BY-NC per the access request). Outputs at its own preprocessed size."""
+    import numpy as np
+    import torch
+    from huggingface_hub import snapshot_download
+    from vggt_omega.models import VGGTOmega
+    from vggt_omega.utils.load_fn import load_and_preprocess_images
+    from vggt_omega.utils.pose_enc import encoding_to_camera
+
+    files, vid, src = _frames(scene_dir, stride)
+    root = Path(snapshot_download("facebook/VGGT-Omega", allow_patterns=["VGGT-Omega-1B-512/*"]))
+    ckpt = next((root / "VGGT-Omega-1B-512").glob("*.pt"))
+    model = VGGTOmega().to("cuda").eval()
+    model.load_state_dict(torch.load(ckpt, map_location="cpu"))
+    images = load_and_preprocess_images(files, image_resolution=res).to("cuda")
+    with torch.inference_mode(), torch.amp.autocast("cuda", dtype=torch.bfloat16):
+        pred = model(images)
+    E, Kt = encoding_to_camera(pred["pose_enc"], pred["images"].shape[-2:])
+    depth = pred["depth"][0, ..., 0].float().cpu().numpy()
+    conf = _rank01(pred["depth_conf"][0].float().cpu().numpy())
+    im = pred["images"][0].float().cpu().numpy()
+    rgb = (np.clip(im.transpose(0, 2, 3, 1), 0, 1) * 255).astype(np.uint8)
+    E = E[0].float().cpu().numpy()[:, :3, :4]
+    hf_cache.commit()
+    return _save("vggt_omega", name, depth, conf, Kt[0].float().cpu().numpy(), _w2c_to_c2w(E),
+                 rgb, vid, src, stride, {"res": res, "images_shape": list(pred["images"].shape)})
+
+
+FUNCS = {"vggt_omega": vggt_omega, "pi3x": pi3x, "vggt": vggt, "da3": da3, "mapanything": mapanything}
 
 
 @app.local_entrypoint()
