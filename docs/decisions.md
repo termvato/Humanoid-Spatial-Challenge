@@ -60,3 +60,9 @@ Evidence: docs/spikes.md S5 + S9.
   Proposal: pi3 for change detection; Pi3X only if metric scale is needed without the phone (else ARKit gives scale).
 - Pipeline: 3D-first core (pi3 -> robust ICP -> voxel carving -> SAM object masks -> DINOv2 moved matching) as the primary system, because it is the only one that yields 3D boxes, unobserved space and a costmap (D9), and it found 5 of 6 changes on pair01 vs SceneDiff's 3. SceneDiff stays as a second (appearance) channel through fusion.
 - Not yet proven: that 3D-first or fusion beats SceneDiff on held-out benchmark pairs (5 pairs is too few). Next test: 30 more SD-V val pairs, ~$6.5.
+
+## D12. Added / removed first, "moved" is a bonus (2026-10-12, decided by user)
+- For a robot, what matters is space that became blocked (added) or free (removed). "Moved" is a nicer description of a removed + added pair, not a separate need.
+- Headline metric: obj/sc AP without change type. Typed AP is reported but not optimised.
+- Keep the DINOv2 matcher (it also raised untyped AP, 25.5 -> 34.3, by merging duplicate pairs), but no further work on moved matching.
+- Occupancy / costmap grid: not built until D11 is settled (user).
