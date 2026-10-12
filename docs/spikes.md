@@ -17,6 +17,7 @@ Each spike has a pass/fail rule written BEFORE running it, so the result decides
 | S13 | Does ignoring free-space evidence at grazing angles cut false alarms? (sim: 8 false "removed" on a table seen edge-on; real rooms: wall patches) | Free evidence only from pixels whose surface is seen at incidence <= 70 / 75 / 80 deg (hits kept). Tuning pairs, full pipeline; sim room; pair01 | Adopt the best angle only if tuning AP >= 34.3 (no loss) AND sim false alarms drop; then held-out 5 pairs must stay >= 18.0. Otherwise keep the pipeline as is | pennies + laptop SAM |
 | S14 | Does conservative carving cut false alarms? A voxel counts as free only if the camera saw past the whole voxel (nearest depth over its projected footprint), optionally with the free margin along the surface normal (slant). Replaces S13's angle cut, which broke the moved pair in sim (kind 2/3) | Tuning pairs, full pipeline: fp, slant, fp+slant | Best variant adopted only if tuning obj/sc AP >= 34.3 (no loss); ties broken by fewer predicted objects. Then held-out 5 must stay >= 18.0. Otherwise pipeline unchanged | pennies + laptop SAM |
 | S15 | Does a minimum object size cut false alarms? (pair01: most of 46 false alarms are 5-10 cm fragments) | Drop blobs whose largest side is under 4 / 6 / 8 / 12 voxels (scale-free; 7 voxels ~ 12 cm on pair01), after SAM (cached masks). Current and fp+slant carving. Tuning pairs + own pairs (tools/score_own.py) | Adopt the largest threshold with tuning AP >= 33.3 (at most 1.0 below 34.3) AND no own-pair change lost; report false alarms cut. Held-out 5 must stay >= 17.0 | pennies |
+| S16 | Does a VLM before/after check cut false alarms? Each change's best crop next to the same 3D spot from the closest camera in the other video; Qwen2.5-VL-7B answers 'changed' or 'same' | Drop a change when every one of its blobs is judged 'same'. Own pairs (current and fp+slant carving), then tuning pairs | Adopt if own pairs lose no true change AND false alarms drop >= 30%; then tuning AP >= 33.3 and held-out >= 17.0. Otherwise keep the verdict as information only | ~$0.5 Modal |
 
 ## Summary of all tests (2026-10-12)
 
@@ -37,6 +38,7 @@ Each spike has a pass/fail rule written BEFORE running it, so the result decides
 | S12 | Does VGGT-Omega beat pi3? | pi3 stays | Best depth on pair01 (2.0%), but benchmark 13.0 vs pi3 17.9 at the geometry stage |
 | S9e | Full 3D pipeline on our room, plain video | strong result | 5 of 6 changes vs SceneDiff's 3. False alarms on walls above the wardrobe |
 | S14 | Conservative carving (whole voxel seen past, normal margin) | not adopted | Tuning 35.4 with 24% fewer objects, but held-out 17.2 < 18.0. 5 pairs too few to tell; off by default |
+| S15 | Minimum object size | not adopted | Only 4 voxels keeps tuning AP (33.9); 6+ voxels cost 3+ AP. The benchmark is full of small objects; size cannot be the false-alarm filter |
 
 Code tidy (2026-10-12): rejected options removed from the code (git history keeps them); one pipeline for video and LiDAR (`roomdiff.pipeline`). Re-running the final settings reproduced the tuning result exactly (34.33 / 23.56) and S5 pi3 (ATE 4.2 cm, AbsRel 0.032). Tool names in older entries below may no longer exist.
 
@@ -246,3 +248,12 @@ Same frames for every model (every 10th frame, both videos in one call), same lo
 - It cuts predictions by a quarter to a third on both sets at nearly equal AP: the removed blobs were mostly not matched to ground truth anyway. Typed AP on held-out fell 12.6 -> 8.0: fewer blobs leaves fewer moved pairs to match. 5 held-out pairs (13 objects) cannot separate 17.2 from 18.0; the 30-pair test could.
 - Sim diagnosis: 2 of the 8 false alarms were grazing rays carving thin table edges (fixed by fp+slant). 3 come from the Simple_Room table asset rendering view-dependently: two visit 2 frames 27 cm apart, the arched leg is present in one and absent in the other (floor visible). Not our error; the bench needs a solid table.
 - S13's angle cut (70/75/80) broke the moved cabinet in sim (kind 2 of 3) and was not run on the benchmark.
+
+### S15: minimum object size, not adopted (2026-10-13)
+
+| Min side (voxels) | 0 | 4 | 6 | 8 | 12 | fp+slant 8 | fp+slant 12 |
+|---|---|---|---|---|---|---|---|
+| Tuning AP | 34.3 | 33.9 | 31.3 | 31.4 | 27.5 | 32.4 | 28.1 |
+
+- Only 4 voxels passes (>= 33.3); on pair01 that is ~7 cm and removes almost nothing (false alarms are mostly 6-10 cm). Size is not the lever.
+- Own pairs scored per detection for the first time (tools/score_own.py, bench/own_gt/): pair01 current 5/6 found, 46 false alarms; fp+slant 5/6, 30. pair02 fp+slant 4/4, 27.
