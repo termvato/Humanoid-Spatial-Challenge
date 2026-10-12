@@ -35,6 +35,7 @@ Each spike has a pass/fail rule written BEFORE running it, so the result decides
 | S11 | pair02 (corridor, mirror) | strong result | 3D pipeline 4 of 4 + boot correctly unobserved; SceneDiff 3 of 4; LiDAR fooled by the mirror |
 | S12 | Does VGGT-Omega beat pi3? | pi3 stays | Best depth on pair01 (2.0%), but benchmark 13.0 vs pi3 17.9 at the geometry stage |
 | S9e | Full 3D pipeline on our room, plain video | strong result | 5 of 6 changes vs SceneDiff's 3. False alarms on walls above the wardrobe |
+| S14 | Conservative carving (whole voxel seen past, normal margin) | not adopted | Tuning 35.4 with 24% fewer objects, but held-out 17.2 < 18.0. 5 pairs too few to tell; off by default |
 
 Code tidy (2026-10-12): rejected options removed from the code (git history keeps them); one pipeline for video and LiDAR (`roomdiff.pipeline`). Re-running the final settings reproduced the tuning result exactly (34.33 / 23.56) and S5 pi3 (ATE 4.2 cm, AbsRel 0.032). Tool names in older entries below may no longer exist.
 
@@ -230,3 +231,17 @@ Same frames for every model (every 10th frame, both videos in one call), same lo
 - (a) pair01 geometry, same scorer as S5: ATE **4.5 cm** (pi3 4.2, Pi3X 3.3), depth AbsRel at one Sim3 scale **0.020** (best of six; Pi3X 0.022, pi3 0.032), Sim3 scale 2.20 (not metric). Change map: suitcase both blobs; 0 false-alarm blobs metric, 5 scale-free (pi3 7, Pi3X 3).
 - (b) 15 tuning pairs, geometry + ICP (obj/sc AP): median/60 6.3, /80 8.2, /110 3.5, /80 with the stricter confidence cut (drop 40%) **13.0**. pi3 at the same stage: 17.9.
 - Rule: geometry < 17.9 -> **stop, pi3 stays.** Best depth on pair01 does not turn into better change detection on the benchmark (same pattern as Pi3X in S10). Cost ~$1.50.
+
+### S14: conservative carving, not adopted (2026-10-12)
+
+| Variant | Tuning AP (typed) | Objects predicted | Held-out AP (typed) | Objects | Sim false alarms |
+|---|---|---|---|---|---|
+| Current | 34.3 (23.6) | 283 | 18.0 (12.6) | 218 | 8 |
+| footprint | 34.0 (23.8) | 248 | | | 6 |
+| slant | 35.0 (24.9) | 291 | | | 6 |
+| footprint + slant | **35.4** (24.6) | **216** | 17.2 (8.0) | 148 | 5 |
+
+- Rule: fp+slant passed tuning (>= 34.3, fewest objects), failed held-out (17.2 < 18.0). **Pipeline unchanged**; options stay in code, off.
+- It cuts predictions by a quarter to a third on both sets at nearly equal AP: the removed blobs were mostly not matched to ground truth anyway. Typed AP on held-out fell 12.6 -> 8.0: fewer blobs leaves fewer moved pairs to match. 5 held-out pairs (13 objects) cannot separate 17.2 from 18.0; the 30-pair test could.
+- Sim diagnosis: 2 of the 8 false alarms were grazing rays carving thin table edges (fixed by fp+slant). 3 come from the Simple_Room table asset rendering view-dependently: two visit 2 frames 27 cm apart, the arched leg is present in one and absent in the other (floor visible). Not our error; the bench needs a solid table.
+- S13's angle cut (70/75/80) broke the moved cabinet in sim (kind 2 of 3) and was not run on the benchmark.
