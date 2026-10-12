@@ -2,13 +2,12 @@
 
 For each SceneDiff object, `support` = mean over its masks of the fraction of mask
 pixels covered by 3D change masks in the same frame (dilated a little to absorb
-misregistration). Modes:
-  soft:  score = cost * (floor + support)
-  gate:  drop objects with support < min_support, keep the rest unchanged
-  add:   soft, plus 3D objects that overlap no SceneDiff object, scored below SceneDiff's range
+misregistration). Score = cost * (floor + support). Then 3D objects that overlap no
+SceneDiff object are added, scored below SceneDiff's range (S9: the best of the
+three fusion variants tried; gating and rescoring alone were worse).
 
-Usage: uv run python tools/fuse.py --scenes a,b --sd outputs/sd/tune --geo outputs/s9/tune_pi3_d80_icp_sam/pred \
-          --cache-tag d80_v5_g0_c0.1_sam_icp --mode soft --out outputs/s9/tune_fuse_soft
+Usage: uv run python tools/fuse.py --scenes a,b --sd outputs/sd/tune --geo outputs/s9/tune_dino5/pred \
+          --out outputs/s9/tune_fuse
 """
 
 from __future__ import annotations
@@ -72,12 +71,11 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--scenes", required=True)
     ap.add_argument("--sd", type=Path, required=True)
-    ap.add_argument("--geo", type=Path, required=True, help="3D-first pred dir (for --mode add)")
-    ap.add_argument("--cache-tag", required=True, help="suffix of outputs/s9/cache/pi3_<scene>_<tag>.pkl")
+    ap.add_argument("--geo", type=Path, required=True, help="3D-first pred dir")
+    ap.add_argument("--cache-tag", default="d80_v5_g0_c0.1_sam_icp",
+                    help="suffix of outputs/s9/cache/<model>_<scene>_<tag>.pkl (3D masks per frame)")
     ap.add_argument("--model", default="pi3")
-    ap.add_argument("--mode", choices=["soft", "gate", "add"], default="soft")
     ap.add_argument("--floor", type=float, default=0.5)
-    ap.add_argument("--min-support", type=float, default=0.1)
     ap.add_argument("--out", type=Path, required=True)
     args = ap.parse_args()
     report = {}
@@ -93,26 +91,21 @@ def main() -> None:
                 continue
             s = support(obj, union)
             sups[str(oid)] = round(s, 3)
-            if args.mode == "gate":
-                if s >= args.min_support:
-                    out[oid] = obj
-                continue
             out[oid] = {vk: {k: {**f, "cost": f["cost"] * (args.floor + s)} for k, f in fr.items()}
                         for vk, fr in obj.items()}
         added = 0
-        if args.mode == "add":
-            geo = pickle.loads((args.geo / scene / "object_masks.pkl").read_bytes())
-            sd_objs = [o for k, o in sd.items() if k not in ("H", "W")]
-            lo = min([f["cost"] for o in out.values() if isinstance(o, dict)
-                      for fr in o.values() for f in fr.values()] or [1.0])
-            gmax = max([f["cost"] for k, o in geo.items() if k not in ("H", "W")
-                        for fr in o.values() for f in fr.values()] or [1.0])
-            for gid, gobj in geo.items():
-                if gid in ("H", "W") or overlaps_any(gobj, sd_objs):
-                    continue
-                out[f"g{gid}"] = {vk: {k: {**f, "cost": 0.9 * lo * f["cost"] / gmax} for k, f in fr.items()}
-                                  for vk, fr in gobj.items()}
-                added += 1
+        geo = pickle.loads((args.geo / scene / "object_masks.pkl").read_bytes())
+        sd_objs = [o for k, o in sd.items() if k not in ("H", "W")]
+        lo = min([f["cost"] for o in out.values() if isinstance(o, dict)
+                  for fr in o.values() for f in fr.values()] or [1.0])
+        gmax = max([f["cost"] for k, o in geo.items() if k not in ("H", "W")
+                    for fr in o.values() for f in fr.values()] or [1.0])
+        for gid, gobj in geo.items():
+            if gid in ("H", "W") or overlaps_any(gobj, sd_objs):
+                continue
+            out[f"g{gid}"] = {vk: {k: {**f, "cost": 0.9 * lo * f["cost"] / gmax} for k, f in fr.items()}
+                              for vk, fr in gobj.items()}
+            added += 1
         d = args.out / "pred" / scene
         d.mkdir(parents=True, exist_ok=True)
         (d / "object_masks.pkl").write_bytes(pickle.dumps(out))

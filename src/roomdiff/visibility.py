@@ -62,12 +62,10 @@ def observe(
     T_wc: np.ndarray,
     tau: float = 0.05,
     valid: np.ndarray | None = None,
-    tau_rel: float = 0.0,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Boolean (hit, free) per voxel centre for one depth frame (OpenCV camera axes).
 
     `valid` masks depth pixels to trust (confidence, range, edges); default: depth > 0.
-    `tau_rel`: surface tolerance grows with depth, tau + tau_rel * depth (depth noise grows with range).
     """
     R, t = T_wc[:3, :3], T_wc[:3, 3]
     pc = (centres - t) @ R  # world -> camera: R^T (x - t), written for row vectors
@@ -85,7 +83,7 @@ def observe(
     if valid is not None:
         ok &= valid[v[inside], u[inside]]
     zs = z[sel]
-    t = tau + tau_rel * d
+    t = tau
     hit[sel] = ok & (np.abs(zs - d) <= t)
     free[sel] = ok & (zs < d - t)
     return hit, free
@@ -114,17 +112,10 @@ def compare(before: np.ndarray, after: np.ndarray, shape: tuple[int, int, int]) 
     return out
 
 
-def components(mask: np.ndarray, shape: tuple[int, int, int], min_voxels: int = 10,
-               merge: int = 0) -> list[np.ndarray]:
-    """Connected components (26-neighbour) of a flat mask, as arrays of flat indices, largest first.
-
-    merge > 0: voxels within `merge` voxels of each other belong to one component
-    (label the dilated mask, keep only original voxels).
-    """
-    m = mask.reshape(shape)
-    grown = ndimage.binary_dilation(m, iterations=merge) if merge > 0 else m
-    lab, n = ndimage.label(grown, structure=np.ones((3, 3, 3)))
-    flat = np.where(m, lab, 0).ravel()
+def components(mask: np.ndarray, shape: tuple[int, int, int], min_voxels: int = 10) -> list[np.ndarray]:
+    """Connected components (26-neighbour) of a flat mask, as arrays of flat indices, largest first."""
+    lab, n = ndimage.label(mask.reshape(shape), structure=np.ones((3, 3, 3)))
+    flat = lab.ravel()
     order = np.argsort(flat)
     bounds = np.searchsorted(flat[order], np.arange(1, n + 2))
     comps = [order[bounds[i] : bounds[i + 1]] for i in range(n)]

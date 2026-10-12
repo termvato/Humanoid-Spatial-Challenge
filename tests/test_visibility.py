@@ -83,21 +83,11 @@ def test_grid_index_outside_is_minus_one():
     assert _at(g, -1.0, -1.0, 0.5) == 0
 
 
-def test_components_merge_joins_nearby_fragments():
+def test_components_split_and_size_filter():
     shape = (12, 4, 4)
     m = np.zeros(shape, bool)
     m[0:3, 1, 1] = True
-    m[5:8, 1, 1] = True  # 2-voxel gap from the first
-    assert len(components(m.ravel(), shape, min_voxels=1)) == 2
-    merged = components(m.ravel(), shape, min_voxels=1, merge=2)
-    assert len(merged) == 1 and len(merged[0]) == 6  # only original voxels are returned
-
-
-def test_tau_rel_widens_surface_band_with_depth():
-    K1 = np.array([[10.0, 0, 5], [0, 10, 5], [0, 0, 1]])
-    d = np.full((10, 10), 4.0)
-    c = np.array([[0.0, 0.0, 3.85]])  # 15 cm in front of a surface 4 m away
-    h, f = observe(c, d, K1, np.eye(4), tau=0.05)
-    assert f[0] and not h[0]
-    h, f = observe(c, d, K1, np.eye(4), tau=0.05, tau_rel=0.03)  # band 0.05 + 0.12
-    assert h[0] and not f[0]
+    m[5:9, 1, 1] = True  # separate, 4 voxels
+    comps = components(m.ravel(), shape, min_voxels=1)
+    assert [len(c) for c in comps] == [4, 3]  # largest first
+    assert len(components(m.ravel(), shape, min_voxels=4)) == 1

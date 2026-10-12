@@ -56,22 +56,19 @@ def frame_points(frames: Frames, i: int, step: int = 4) -> np.ndarray:
     return pc @ T[:3, :3].T + T[:3, 3]
 
 
-def carve(frames: Frames, centres: np.ndarray, tau: float, tau_rel: float = 0.0) -> tuple[np.ndarray, np.ndarray]:
+def carve(frames: Frames, centres: np.ndarray, tau: float) -> tuple[np.ndarray, np.ndarray]:
     hits = np.zeros(len(centres), np.uint16)
     frees = np.zeros(len(centres), np.uint16)
     for i in range(len(frames)):
-        h, f = observe(centres, frames.depth[i], frames.K[i], frames.T_wc[i], tau=tau, valid=frames.valid[i], tau_rel=tau_rel)
+        h, f = observe(centres, frames.depth[i], frames.K[i], frames.T_wc[i], tau=tau, valid=frames.valid[i])
         hits += h
         frees += f
     return hits, frees
 
 
 def build(before: Frames, after: Frames, voxel: float, tau: float | None = None, min_voxels: int = 15,
-          min_views: int = 2, bounds_pct: float = 1.0, merge: int = 0, tau_rel: float = 0.0) -> ChangeMap:
-    """Change map of two visits in one world frame. `tau` defaults to one voxel.
-
-    `merge`: blobs closer than this many voxels are one object (fragmented surfaces).
-    """
+          min_views: int = 2, bounds_pct: float = 1.0) -> ChangeMap:
+    """Change map of two visits in one world frame. `tau` defaults to one voxel."""
     tau = voxel if tau is None else tau
     pts = np.concatenate([frame_points(f, i, step=2) for f in (before, after) for i in range(len(f))])
     lo, hi = np.percentile(pts, bounds_pct, axis=0), np.percentile(pts, 100 - bounds_pct, axis=0)
@@ -87,12 +84,12 @@ def build(before: Frames, after: Frames, voxel: float, tau: float | None = None,
     n = int(np.prod(grid.shape))
     sb = np.zeros(n, np.uint8)
     sa = np.zeros(n, np.uint8)
-    sb[cand] = classify(*carve(before, centres, tau, tau_rel), min_views=min_views)
-    sa[cand] = classify(*carve(after, centres, tau, tau_rel), min_views=min_views)
+    sb[cand] = classify(*carve(before, centres, tau), min_views=min_views)
+    sa[cand] = classify(*carve(after, centres, tau), min_views=min_views)
     lab = compare(sb, sa, grid.shape)
     blobs = []
     for kind in ("removed", "added"):
-        for c in components(lab == LABELS[kind], grid.shape, min_voxels, merge=merge):
+        for c in components(lab == LABELS[kind], grid.shape, min_voxels):
             p = grid.centres_of(c)
             blobs.append(Blob(len(blobs), kind, c, p.mean(0), p.max(0) - p.min(0) + voxel, float(len(c))))
     return ChangeMap(grid, lab, sb, sa, blobs, tau)
@@ -124,18 +121,18 @@ def blob_mask(frames: Frames, i: int, centres: np.ndarray, voxel: float, tau: fl
 
 
 def to_scenediff(cm: ChangeMap, frames: Frames, resample: int = 30, min_px: int = 50, refine=None,
-                 match: dict | None = None, views: dict | None = None) -> dict:
+                 match: dict | None = None, views: dict | None = None, descriptor=None) -> dict:
     """Predictions in SceneDiff's object_masks.pkl format, for its official evaluator.
 
     Removed blobs are drawn in video 1 frames, added in video 2, only on frames the
     evaluator scores (source index divisible by `resample`). `refine(key, rgb, coarse)`
     optionally replaces the coarse projected mask (e.g. `objects.SamRefiner`); a None
-    return drops that view. `match`: kwargs for `objects.match_moved` (needs rgb); a
-    matched removed + added pair is exported as one moved object (masks in both videos).
+    return drops that view. `match`: kwargs for `objects.match_moved`, with `descriptor`
+    (needs rgb); a matched removed + added pair is exported as one moved object.
     `views`: precomputed `collect_views` output (e.g. cached SAM masks).
     """
     views = collect_views(cm, frames, resample, min_px, refine) if views is None else views
-    return export(cm, frames, views, resample, match)
+    return export(cm, frames, views, resample, match, descriptor)
 
 
 def collect_views(cm: ChangeMap, frames: Frames, resample: int = 30, min_px: int = 50,
@@ -163,23 +160,20 @@ def export(cm: ChangeMap, frames: Frames, views: dict, resample: int = 30, match
            descriptor=None) -> dict:
     """SceneDiff-format objects from per-blob views, optionally merging matched removed + added as moved.
 
-    `descriptor(rgb, mask) -> vector`: appearance descriptor for matching (default colour histogram).
+    `descriptor(rgb, mask) -> vector`: appearance descriptor for matching (e.g. `objects.DinoDescriptor`),
+    required when `match` is given. A blob's descriptor is the normalised mean over its views.
     """
     from pycocotools import mask as rle
 
-    from roomdiff.objects import colour_descriptor, match_moved
+    from roomdiff.objects import match_moved
 
     h, w = frames.depth.shape[1:]
     blobs = {b.id: b for b in cm.blobs}
     partner: dict[int, int] = {}
     if match is not None and frames.rgb is not None:
         def summary(bid):
-            fn = descriptor or colour_descriptor
-            ds = [fn(frames.rgb[i], m) for i, m in views[bid].items()]
-            d = np.mean(ds, axis=0)
-            if descriptor is not None:
-                d = d / (np.linalg.norm(d) + 1e-9)
-            return {"desc": d, "voxels": len(blobs[bid].idx)}
+            d = np.mean([descriptor(frames.rgb[i], m) for i, m in views[bid].items()], axis=0)
+            return {"desc": d / (np.linalg.norm(d) + 1e-9), "voxels": len(blobs[bid].idx)}
         removed = {k: summary(k) for k in views if blobs[k].kind == "removed"}
         added = {k: summary(k) for k in views if blobs[k].kind == "added"}
         for r, a, _ in match_moved(removed, added, **match):

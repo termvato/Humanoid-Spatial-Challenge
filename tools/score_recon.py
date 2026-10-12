@@ -9,7 +9,7 @@ Reports, for the model's joint reconstruction of both videos:
     map's suitcase blobs (S7), metric (Sim(3) scale) and scale-free (voxel = median depth / 40)
 
 Usage: uv run python tools/score_recon.py outputs/recon/pi3_pair01.npz --name pi3 --out outputs/s5
-Needs data/raw/<pair> and outputs/s7/labels.npz (LiDAR registration).
+Needs data/raw/<pair> (both Stray captures; they are registered here, as in S7).
 """
 
 from __future__ import annotations
@@ -26,14 +26,11 @@ from roomdiff.changemap import blob_mask, build
 from roomdiff.frames import from_recon_npz
 from roomdiff.io.stray import load_stray
 from roomdiff.metrics import ate, depth_errors
+from roomdiff.pipeline import capture_dir, lidar_frames, register_lidar
 
 # S7 LiDAR suitcase blobs (after-capture world, metres): ground truth locations of the move
 SUITCASE = {"removed": np.array([-1.958, -1.107, 2.097]), "added": np.array([-2.847, -1.129, 2.146])}
 MATCH_RADIUS = 0.4
-
-
-def capture_dir(pair: Path, which: str) -> Path:
-    return next(p for p in (pair / which).iterdir() if (p / "odometry.csv").exists())
 
 
 def score_blobs(blobs_world: list[dict]) -> dict:
@@ -55,7 +52,6 @@ def main() -> None:
     ap.add_argument("recon", type=Path)
     ap.add_argument("--name", required=True)
     ap.add_argument("--pair", type=Path, default=Path("data/raw/pair01"))
-    ap.add_argument("--lidar-map", type=Path, default=Path("outputs/s7/labels.npz"))
     ap.add_argument("--out", type=Path, default=Path("outputs/s5"))
     ap.add_argument("--min-voxels", type=int, default=15)
     ap.add_argument("--min-conf", type=float, default=0.1)
@@ -65,7 +61,7 @@ def main() -> None:
 
     F = from_recon_npz(args.recon, min_conf=args.min_conf)
     before, after = load_stray(capture_dir(args.pair, "before")), load_stray(capture_dir(args.pair, "after"))
-    T_b = np.load(args.lidar_map)["T_before_to_after"]
+    T_b = register_lidar(*lidar_frames(args.pair)).T  # before -> after world
     caps = {1: (before, T_b), 2: (after, np.eye(4))}
     ref = np.stack([(caps[v][1] @ caps[v][0].T_wc[min(s, len(caps[v][0]) - 1)])[:3, 3]
                     for v, s in zip(F.video, F.src)])

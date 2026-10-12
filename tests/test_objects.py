@@ -27,18 +27,6 @@ def test_choose_mask_picks_agreeing_candidate_or_none():
     assert choose_mask(np.stack([tiny, np.zeros_like(whole)]), coarse) is None
 
 
-def test_colour_descriptor_normalised_and_masked():
-    from roomdiff.objects import colour_descriptor
-
-    rgb = np.zeros((20, 20, 3), np.uint8)
-    rgb[:, :10] = (255, 0, 0)
-    rgb[:, 10:] = (0, 0, 255)
-    left = _rect(20, 20, 0, 20, 0, 10)
-    d = colour_descriptor(rgb, left)
-    assert abs(d.sum() - 1) < 1e-6
-    assert np.count_nonzero(d) == 1  # only red pixels counted
-
-
 def test_match_moved_greedy_one_to_one_with_size_gate():
     from roomdiff.objects import match_moved
 
@@ -49,11 +37,11 @@ def test_match_moved_greedy_one_to_one_with_size_gate():
     assert [(r, a) for r, a, _ in pairs] == [(0, 5)]
 
 
-def test_match_moved_cosine_kind():
+def test_match_moved_cosine_threshold():
     from roomdiff.objects import match_moved
 
     a = np.array([1.0, 0.0])
     b = np.array([0.6, 0.8])
-    pairs = match_moved({0: {"desc": a, "voxels": 10}}, {1: {"desc": b, "voxels": 10}}, min_sim=0.5, kind="cos")
+    pairs = match_moved({0: {"desc": a, "voxels": 10}}, {1: {"desc": b, "voxels": 10}}, min_sim=0.5)
     assert pairs == [(0, 1, 0.6)]
-    assert match_moved({0: {"desc": a, "voxels": 10}}, {1: {"desc": b, "voxels": 10}}, min_sim=0.7, kind="cos") == []
+    assert match_moved({0: {"desc": a, "voxels": 10}}, {1: {"desc": b, "voxels": 10}}, min_sim=0.7) == []

@@ -78,20 +78,12 @@ class SamRefiner:
         return choose_mask(masks, coarse, self.min_agree)
 
 
-def colour_descriptor(rgb: np.ndarray, mask: np.ndarray, bins: tuple[int, int, int] = (12, 4, 4)) -> np.ndarray:
-    """L1-normalised HSV histogram of the masked pixels (hue-heavy: robust to lighting)."""
-    hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)
-    h = cv2.calcHist([hsv], [0, 1, 2], mask.astype(np.uint8), list(bins), [0, 180, 0, 256, 0, 256]).ravel()
-    return h / max(h.sum(), 1e-9)
-
-
 def match_moved(removed: dict[int, dict], added: dict[int, dict], min_sim: float = 0.5,
-                min_size_ratio: float = 0.4, kind: str = "hist") -> list[tuple[int, int, float]]:
+                min_size_ratio: float = 0.4) -> list[tuple[int, int, float]]:
     """Pair removed and added objects that are the same thing in a new place (greedy, best first).
 
-    Each value: {"desc": descriptor, "voxels": int}. Similarity = histogram intersection
-    for colour histograms (kind="hist") or cosine for unit feature vectors (kind="cos");
-    pairs whose voxel counts differ by more than 1/min_size_ratio are not considered.
+    Each value: {"desc": unit feature vector, "voxels": int}. Similarity = cosine; pairs
+    whose voxel counts differ by more than 1/min_size_ratio are not considered.
     Returns (removed_id, added_id, similarity).
     """
     cands = []
@@ -100,10 +92,7 @@ def match_moved(removed: dict[int, dict], added: dict[int, dict], min_sim: float
             ratio = min(a_r["voxels"], a_a["voxels"]) / max(a_r["voxels"], a_a["voxels"])
             if ratio < min_size_ratio:
                 continue
-            if kind == "hist":
-                sim = float(np.minimum(a_r["desc"], a_a["desc"]).sum())
-            else:
-                sim = float(a_r["desc"] @ a_a["desc"])
+            sim = float(a_r["desc"] @ a_a["desc"])
             if sim >= min_sim:
                 cands.append((sim, r, a))
     used_r, used_a, pairs = set(), set(), []
