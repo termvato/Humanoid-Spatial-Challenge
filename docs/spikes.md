@@ -257,3 +257,8 @@ Same frames for every model (every 10th frame, both videos in one call), same lo
 
 - Only 4 voxels passes (>= 33.3); on pair01 that is ~7 cm and removes almost nothing (false alarms are mostly 6-10 cm). Size is not the lever.
 - Own pairs scored per detection for the first time (tools/score_own.py, bench/own_gt/): pair01 current 5/6 found, 46 false alarms; fp+slant 5/6, 30. pair02 fp+slant 4/4, 27.
+
+### S16 notes so far (2026-10-13, running)
+- The written prompt ("changed" or "same") failed on own pairs: it said "same" for the blanket, pouch, cap and printer, although the crops show them plainly present vs absent. A 7B VLM defaults to "same".
+- Prompt and crop iterated on own pairs, which are therefore development data now, not the test: a yes/no question ("is there an object inside the box in one image that is missing from the other?") said yes to every main real change with a crop, and to 36% of false alarms (26 of 72). Contour markers drowned small regions ("red pixelated shape"), so the marker is now a thin box around the region; the other-video search was widened (half the detections had no comparison view).
+- The rule's decision moves to the benchmark: tuning AP >= 33.3 and held-out >= 17.0 with the filter on.
