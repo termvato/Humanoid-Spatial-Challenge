@@ -52,13 +52,17 @@ def load(app, settle: int = 30) -> None:
 
 def set_visit(app, visit: int) -> dict:
     """Place every prop for `visit` (1 or 2); returns ground truth {name: {pos, bbox_min, bbox_max}} or None."""
+    return place(app, {name: where[visit] for name, (_, _, where, _) in PROPS.items()})
+
+
+def place(app, positions: dict) -> dict:
+    """Put each prop's box centre at its (x, y) floor position, or hide it for None."""
     stage = get_current_stage()
     gt: dict = {}
     for name in sorted(PROPS, key=lambda n: n in STACKED):  # bases before what sits on them
-        _, _, where, _ = PROPS[name]
         prim = stage.GetPrimAtPath(f"/World/Props/{name}")
         img = UsdGeom.Imageable(prim)
-        if where[visit] is None:
+        if positions.get(name) is None:
             img.MakeInvisible()
             gt[name] = None
             continue
@@ -66,14 +70,32 @@ def set_visit(app, visit: int) -> dict:
         api = UsdGeom.XformCommonAPI(prim)
         api.SetTranslate(Gf.Vec3d(0, 0, 0))
         lo, hi = _bbox(prim)
-        if name in STACKED:
-            base = gt[STACKED[name]]
-            z = base["bbox_max"][2]
+        if name in STACKED and gt.get(STACKED[name]):
+            z = gt[STACKED[name]]["bbox_max"][2]
         else:
             z = 0.01 if name in ON_TABLE else FLOOR_Z
-        x, y = where[visit]
+        x, y = positions[name]
         api.SetTranslate(Gf.Vec3d(x - (lo[0] + hi[0]) / 2, y - (lo[1] + hi[1]) / 2, z - lo[2]))
         lo, hi = _bbox(prim)
         gt[name] = {"pos": [x, y], "bbox_min": lo.round(3).tolist(), "bbox_max": hi.round(3).tolist()}
     app.update()
     return gt
+
+
+ROBOT = "/Isaac/Robots/NVIDIA/NovaCarter/nova_carter.usd"
+
+
+def add_robot(app):
+    """A Nova Carter, placed kinematically (no physics): returns its parent prim."""
+    stage = get_current_stage()
+    prim = UsdGeom.Xform.Define(stage, "/World/Robot").GetPrim()
+    stage.DefinePrim("/World/Robot/asset").GetReferences().AddReference(get_assets_root_path() + ROBOT)
+    for _ in range(20):
+        app.update()
+    return prim
+
+
+def set_robot(prim, x: float, y: float, yaw: float) -> None:
+    api = UsdGeom.XformCommonAPI(prim)
+    api.SetTranslate(Gf.Vec3d(x, y, FLOOR_Z))
+    api.SetRotate(Gf.Vec3f(0, 0, float(np.degrees(yaw))))

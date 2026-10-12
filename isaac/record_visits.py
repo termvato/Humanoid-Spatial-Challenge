@@ -1,7 +1,7 @@
 """Record two simulated visits of the test room as posed RGB-D, in our reconstruction format.
 
-The camera stands in for a robot's head camera: 1 m above the floor, 15 deg down, sweeping
-left and right while it loops the room. Visit 2 loops the other way on a different radius
+The camera stands in for a robot's head camera: 1 m above the floor, 15 deg down, facing
+across the room and sweeping left and right while it loops the room. Visit 2 loops the other way on a different radius
 and never looks at UNOBSERVED_CORNER. Depth (distance to image plane) and poses come
 from the renderer, so they are exact and metric.
 
@@ -54,7 +54,7 @@ def trajectory(visit: int, n: int):
     for i in range(n):
         th = sign * 2 * np.pi * i / n
         p = np.array([cx + rx * np.cos(th), cy + ry * np.sin(th)])
-        yaw = th + np.radians(55) * np.sin(3 * th)  # face outwards, sweeping
+        yaw = th + np.pi + np.radians(50) * np.sin(3 * th)  # face across the room, sweeping
         if visit == 2:  # keep the corner at least 60 deg off the optical axis (half field of view ~30 deg)
             b = np.arctan2(*(corner - p)[::-1])
             d = np.angle(np.exp(1j * (yaw - b)))
@@ -91,7 +91,7 @@ def record() -> None:
         for i, (pos, look) in enumerate(trajectory(visit, args.frames)):
             with cam:
                 rep.modify.pose(position=tuple(pos), look_at=tuple(look))
-            rep.orchestrator.step(rt_subframes=4)
+            rep.orchestrator.step(rt_subframes=2)
             d = np.asarray(ann["distance_to_image_plane"].get_data(), np.float32)
             d[~np.isfinite(d)] = 0
             cp = ann["camera_params"].get_data()
