@@ -123,21 +123,27 @@ def blob_mask(frames: Frames, i: int, centres: np.ndarray, voxel: float, tau: fl
     return mask.astype(bool)
 
 
-def to_scenediff(cm: ChangeMap, frames: Frames, resample: int = 30, min_px: int = 50, refine=None) -> dict:
+def to_scenediff(cm: ChangeMap, frames: Frames, resample: int = 30, min_px: int = 50, refine=None,
+                 match: dict | None = None, views: dict | None = None) -> dict:
     """Predictions in SceneDiff's object_masks.pkl format, for its official evaluator.
 
     Removed blobs are drawn in video 1 frames, added in video 2, only on frames the
     evaluator scores (source index divisible by `resample`). `refine(key, rgb, coarse)`
     optionally replaces the coarse projected mask (e.g. `objects.SamRefiner`); a None
-    return drops that view.
+    return drops that view. `match`: kwargs for `objects.match_moved` (needs rgb); a
+    matched removed + added pair is exported as one moved object (masks in both videos).
+    `views`: precomputed `collect_views` output (e.g. cached SAM masks).
     """
-    from pycocotools import mask as rle
+    views = collect_views(cm, frames, resample, min_px, refine) if views is None else views
+    return export(cm, frames, views, resample, match)
 
+
+def collect_views(cm: ChangeMap, frames: Frames, resample: int = 30, min_px: int = 50,
+                  refine=None) -> dict[int, dict[int, np.ndarray]]:
+    """Per blob, the mask in each scored frame of its video: blob id -> frame index -> bool mask."""
     voxel = cm.grid.size
-    h, w = frames.depth.shape[1:]
-    out: dict = {"H": h, "W": w}
-    scored = np.flatnonzero(frames.src % resample == 0)
-    for i in scored:  # frame-major so a refiner embeds each image once
+    views: dict[int, dict[int, np.ndarray]] = {}
+    for i in np.flatnonzero(frames.src % resample == 0):  # frame-major so a refiner embeds each image once
         v = int(frames.video[i])
         for b in cm.blobs:
             if (b.kind == "removed") != (v == 1):
@@ -149,8 +155,44 @@ def to_scenediff(cm: ChangeMap, frames: Frames, resample: int = 30, min_px: int 
                 m = refine(int(i), frames.rgb[i], m)
                 if m is None or m.sum() < min_px:
                     continue
-            enc = rle.encode(np.asfortranarray(m.astype(np.uint8)))
-            enc["counts"] = enc["counts"].decode()
-            out.setdefault(b.id, {}).setdefault(f"video_{v}", {})[int(frames.src[i] // resample)] = {
-                "mask": enc, "cost": b.score}
+            views.setdefault(b.id, {})[int(i)] = m
+    return views
+
+
+def export(cm: ChangeMap, frames: Frames, views: dict, resample: int = 30, match: dict | None = None) -> dict:
+    """SceneDiff-format objects from per-blob views, optionally merging matched removed + added as moved."""
+    from pycocotools import mask as rle
+
+    from roomdiff.objects import colour_descriptor, match_moved
+
+    h, w = frames.depth.shape[1:]
+    blobs = {b.id: b for b in cm.blobs}
+    partner: dict[int, int] = {}
+    if match is not None and frames.rgb is not None:
+        def summary(bid):
+            ds = [colour_descriptor(frames.rgb[i], m) for i, m in views[bid].items()]
+            return {"desc": np.mean(ds, axis=0), "voxels": len(blobs[bid].idx)}
+        removed = {k: summary(k) for k in views if blobs[k].kind == "removed"}
+        added = {k: summary(k) for k in views if blobs[k].kind == "added"}
+        for r, a, _ in match_moved(removed, added, **match):
+            partner[r] = a
+
+    def encode(m):
+        enc = rle.encode(np.asfortranarray(m.astype(np.uint8)))
+        enc["counts"] = enc["counts"].decode()
+        return enc
+
+    out: dict = {"H": h, "W": w}
+    absorbed = set(partner.values())
+    for bid in views:
+        if bid in absorbed:
+            continue
+        members = [bid] + ([partner[bid]] if bid in partner else [])
+        score = float(np.mean([blobs[k].score for k in members]))
+        obj: dict = {}
+        for k in members:
+            v = 1 if blobs[k].kind == "removed" else 2
+            for i, m in views[k].items():
+                obj.setdefault(f"video_{v}", {})[int(frames.src[i] // resample)] = {"mask": encode(m), "cost": score}
+        out[bid] = obj
     return out

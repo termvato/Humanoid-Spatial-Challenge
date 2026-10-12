@@ -76,3 +76,37 @@ class SamRefiner:
             box=box, multimask_output=True,
         )
         return choose_mask(masks, coarse, self.min_agree)
+
+
+def colour_descriptor(rgb: np.ndarray, mask: np.ndarray, bins: tuple[int, int, int] = (12, 4, 4)) -> np.ndarray:
+    """L1-normalised HSV histogram of the masked pixels (hue-heavy: robust to lighting)."""
+    hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)
+    h = cv2.calcHist([hsv], [0, 1, 2], mask.astype(np.uint8), list(bins), [0, 180, 0, 256, 0, 256]).ravel()
+    return h / max(h.sum(), 1e-9)
+
+
+def match_moved(removed: dict[int, dict], added: dict[int, dict], min_sim: float = 0.5,
+                min_size_ratio: float = 0.4) -> list[tuple[int, int, float]]:
+    """Pair removed and added objects that are the same thing in a new place (greedy, best first).
+
+    Each value: {"desc": colour descriptor, "voxels": int}. Similarity = histogram
+    intersection; pairs whose voxel counts differ by more than 1/min_size_ratio are not
+    considered. Returns (removed_id, added_id, similarity).
+    """
+    cands = []
+    for r, a_r in removed.items():
+        for a, a_a in added.items():
+            ratio = min(a_r["voxels"], a_a["voxels"]) / max(a_r["voxels"], a_a["voxels"])
+            if ratio < min_size_ratio:
+                continue
+            sim = float(np.minimum(a_r["desc"], a_a["desc"]).sum())
+            if sim >= min_sim:
+                cands.append((sim, r, a))
+    used_r, used_a, pairs = set(), set(), []
+    for sim, r, a in sorted(cands, reverse=True):
+        if r in used_r or a in used_a:
+            continue
+        used_r.add(r)
+        used_a.add(a)
+        pairs.append((r, a, sim))
+    return pairs

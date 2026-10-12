@@ -15,8 +15,11 @@ import json
 import pickle
 from pathlib import Path
 
-from roomdiff.changemap import build, to_scenediff
-from roomdiff.frames import from_recon_npz
+import numpy as np
+
+from roomdiff.align import refine_between_videos
+from roomdiff.changemap import build, collect_views, export, frame_points
+from roomdiff.frames import concat, from_recon_npz
 
 
 def main() -> None:
@@ -28,6 +31,9 @@ def main() -> None:
     ap.add_argument("--min-conf", type=float, default=0.1)
     ap.add_argument("--merge", type=int, default=0, help="join blobs within N voxels")
     ap.add_argument("--refine", choices=["none", "sam"], default="none")
+    ap.add_argument("--match", type=float, default=0.0, help="moved matching: min colour similarity (0 = off)")
+    ap.add_argument("--match-size", type=float, default=0.4, help="moved matching: min voxel count ratio")
+    ap.add_argument("--icp", action="store_true", help="refine video 2 onto video 1 with robust ICP")
     ap.add_argument("--recon-dir", type=Path, default=Path("outputs/recon"))
     ap.add_argument("--out", type=Path, required=True)
     args = ap.parse_args()
@@ -40,12 +46,31 @@ def main() -> None:
     for scene in args.scenes.split(","):
         F = from_recon_npz(args.recon_dir / f"{args.model}_{scene}.npz", min_conf=args.min_conf)
         voxel = F.median_depth() / args.div
-        cm = build(F.of_video(1), F.of_video(2), voxel=voxel, min_voxels=args.min_voxels, merge=args.merge)
-        pred = to_scenediff(cm, F, refine=refine)
+        before, after = F.of_video(1), F.of_video(2)
+        icp = None
+        if args.icp:
+            pb = np.concatenate([frame_points(before, i) for i in range(len(before))])
+            pa = np.concatenate([frame_points(after, i) for i in range(len(after))])
+            T, f0, f1 = refine_between_videos(pa, pb, voxel)
+            icp = {"fitness_before": round(f0, 3), "fitness_after": round(f1, 3), "applied": f1 > f0}
+            if f1 > f0:
+                after = after.transformed(T)
+                F = concat(before, after)
+        cm = build(before, after, voxel=voxel, min_voxels=args.min_voxels, merge=args.merge)
+        match = {"min_sim": args.match, "min_size_ratio": args.match_size} if args.match > 0 else None
+        cache = Path("outputs/s9/cache") / (f"{args.model}_{scene}_d{args.div:g}_v{args.min_voxels}_g{args.merge}"
+                                            f"_c{args.min_conf:g}_{args.refine}{'_icp' if args.icp else ''}.pkl")
+        if cache.exists():
+            views = pickle.loads(cache.read_bytes())
+        else:
+            views = collect_views(cm, F, refine=refine)
+            cache.parent.mkdir(parents=True, exist_ok=True)
+            cache.write_bytes(pickle.dumps(views))
+        pred = export(cm, F, views, match=match)
         d = args.out / "pred" / scene
         d.mkdir(parents=True, exist_ok=True)
         (d / "object_masks.pkl").write_bytes(pickle.dumps(pred))
-        summary[scene] = {"blobs": len(cm.blobs), "exported": len(pred) - 2, "counts": cm.counts()}
+        summary[scene] = {"icp": icp, "blobs": len(cm.blobs), "exported": len(pred) - 2, "counts": cm.counts()}
         print(scene, summary[scene])
     (args.out / "summary.json").write_text(json.dumps({"args": {k: str(v) for k, v in vars(args).items()},
                                                        "scenes": summary}, indent=2))

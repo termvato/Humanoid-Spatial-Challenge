@@ -48,4 +48,4 @@ def depth_errors(pred: np.ndarray, ref: np.ndarray, mask: np.ndarray, scale: flo
     s = np.median(r) / np.median(p) if scale is None else scale
     p = p * s
     ratio = np.maximum(p / r, r / p)
-    return {"abs_rel": float(np.mean(np.abs(p - r) / r)), "delta1": float(np.mean(ratio < 1.25)), "n": int(len(r))}
+    return {"abs_rel": float(np.mean(np.abs(p - r) / r)), "delta1": float(np.mean(ratio < 1.25)), "n": len(r)}

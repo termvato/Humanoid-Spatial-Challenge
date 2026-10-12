@@ -136,3 +136,30 @@ Same frames for every model (every 10th frame, both videos in one call), same lo
 - Geometry winner (Pi3X) and change-detection winner (pi3) differ. Open for the user (D11).
 - Failure modes seen (bedroom_2_bedroom_3): carpet-texture noise blobs, wall corners, fragmented masks; SAM fixes mask quality.
 - SceneDiff baseline on the same 15 pairs: running (needed for a like-for-like comparison).
+
+**(c) Pipeline improvements on the tuning pairs (obj/sc AP, typed, obj/im AP, px IoU):**
+
+| Config (all pi3, voxel = median/80) | AP | typed | obj/im | px IoU |
+|---|---|---|---|---|
+| geometry only | 15.3 | 7.7 | 31.2 | 0.45 |
+| + moved matching by colour histogram (thr 0.5) | lower: typed 8.7 vs 10.7, dropped | | | |
+| + robust ICP of video 2 onto video 1 | 17.9 | 9.3 | 34.1 | 0.50 |
+| + SAM object layer | 22.0 | 10.7 | 38.7 | 0.50 |
+| + ICP + SAM | 25.5 | 12.6 | 44.0 | 0.59 |
+| SceneDiff (same 15 pairs) | 44.4 | 32.1 | 51.4 | 0.38 |
+| Fusion: SceneDiff rescored by 3D support (x (0.5 + support)) | 47.2 | 33.1 | 52.5 | 0.38 |
+| Fusion: gate (drop support < 0.1) | 43.0 | 30.0 | 49.7 | 0.45 |
+| **Fusion: rescore + add 3D-only objects** | **50.8** | **35.2** | **60.5** | **0.51** |
+
+**(d) Held-out test, the 5 S1 pairs, configs frozen before running:**
+
+| Method | AP | typed | obj/im | px IoU |
+|---|---|---|---|---|
+| SceneDiff | 32.0 | 15.8 | 44.6 | 0.19 |
+| 3D-first (pi3, /80, ICP, SAM) | 14.9 | 4.0 | 21.2 | **0.31** |
+| Fusion (rescore + add) | 33.0 | 13.0 | 45.9 | 0.20 |
+
+- **S9b verdict by the written rule: 14.9 is in 13-26 -> "3D core plus SceneDiff appearance as a second channel".** S9a passed.
+- The tuning-set fusion gain (+6.4 AP) mostly does not transfer: on held-out it is +1.0 AP, -2.8 typed. 5 pairs hold only 13 GT objects, so the test cannot separate these. A larger held-out set is needed before claiming a gain (val[20:50], 30 pairs: ~$5.4 SceneDiff + ~$1 pi3).
+- 3D-first has the best pixel IoU on both sets: it finds changed regions; it is weak at instances (fragments, noise blobs, failed reconstructions such as gas_station, where pi3 did not co-register the two videos: fitness 0.07).
+- Typed AP is our weakest number: moved objects need a real matcher (appearance features, not colour histograms).

@@ -78,7 +78,7 @@ def from_recon_npz(path: str | Path, min_conf: float = 0.1, edge_rtol: float = 0
     for i in range(len(depth)):
         valid[i] &= ~depth_edges(depth[i], edge_rtol)
     return Frames(depth, valid, z["K"].astype(np.float64), z["T_wc"].astype(np.float64), z["video"], z["src"],
-                  z["rgb"] if "rgb" in z else None, {"source": str(path)})
+                  z.get("rgb"), {"source": str(path)})
 
 
 def from_stray(cap: StrayCapture, video: int, stride: int = 5, min_conf: int = 2, max_depth: float = 4.0) -> Frames:

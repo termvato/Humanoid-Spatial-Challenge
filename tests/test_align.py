@@ -49,3 +49,17 @@ def test_register_handles_large_yaw():
     err_rot = np.degrees(Rotation.from_matrix(reg.T[:3, :3] @ T_true[:3, :3].T).magnitude())
     assert err_rot < 1.0
     assert np.linalg.norm(reg.T[:3, 3] - T_true[:3, 3]) < 0.03
+
+
+def test_refine_between_videos_removes_small_offset():
+    from roomdiff.align import refine_between_videos
+
+    rng = np.random.default_rng(2)
+    a = _room(rng)
+    T_off = np.eye(4)
+    T_off[:3, :3] = Rotation.from_euler("xyz", [1.0, -1.5, 0.8], degrees=True).as_matrix()
+    T_off[:3, 3] = [0.04, -0.03, 0.05]
+    b = transform(a, T_off)
+    T, f0, f1 = refine_between_videos(b, a, voxel=0.03)
+    np.testing.assert_allclose(T @ T_off, np.eye(4), atol=0.01)
+    assert f1 > f0

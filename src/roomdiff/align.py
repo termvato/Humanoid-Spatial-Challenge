@@ -132,3 +132,23 @@ def register(source: np.ndarray, target: np.ndarray, voxel: float = 0.05) -> Reg
 
 def transform(points: np.ndarray, T: np.ndarray) -> np.ndarray:
     return points @ T[:3, :3].T + T[:3, 3]
+
+
+def refine_between_videos(src_pts: np.ndarray, tgt_pts: np.ndarray, voxel: float,
+                          max_iter: int = 50) -> tuple[np.ndarray, float, float]:
+    """6-DoF robust point-to-plane ICP of one video's cloud onto the other's, starting from identity.
+
+    For joint reconstructions (pi3 etc.) that place both videos in one frame but with a
+    small offset. Tukey loss downweights changed objects. Returns (T, fitness before,
+    fitness after), fitness = fraction of source points within 2 voxels of the target.
+    """
+    reg = o3d.pipelines.registration
+    src, tgt = _pcd(src_pts, voxel), _pcd(tgt_pts, voxel)
+    before = reg.evaluate_registration(src, tgt, 2 * voxel, np.eye(4)).fitness
+    T = np.eye(4)
+    for radius in (6 * voxel, 3 * voxel, 1.5 * voxel):
+        est = reg.TransformationEstimationPointToPlane(reg.TukeyLoss(k=radius))
+        T = reg.registration_icp(src, tgt, radius, T, est, reg.ICPConvergenceCriteria(max_iteration=max_iter)
+                                 ).transformation
+    after = reg.evaluate_registration(src, tgt, 2 * voxel, T).fitness
+    return np.asarray(T).copy(), before, after
