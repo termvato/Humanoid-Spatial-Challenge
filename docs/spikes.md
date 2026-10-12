@@ -100,3 +100,39 @@ No pass/fail rule was written before running, so this is a result without a verd
 - What did work: the finger filter removed the finger artifact it was built for.
 - Observation for head A: P0, P6 and P8 lie on surfaces the S7 LiDAR map labels unchanged. A geometric veto (reject a 2D change whose 3D voxels are confidently unchanged) would remove them, and LiDAR independently found the blanket. Candidate spike S8.
 - Artifacts: outputs/s6/objects.jpg (one tile per prediction), outputs/s6/pred/, data/scenediff_own/pair01_kf/keyframes.jpg.
+
+### S5 + S9: reconstruction model comparison and 3D-first pipeline (2026-10-12, overnight, in progress)
+Same frames for every model (every 10th frame, both videos in one call), same loader, same change-map code; only the model differs. Model runner: `infra/modal_models.py`; scorer: `tools/score_recon.py`; benchmark export: `tools/bench_predict.py` + official SceneDiff evaluator.
+
+**(a) Geometry on pair01 vs ARKit poses + LiDAR depth (243 frames):**
+
+| Model | ATE (cm, Sim3) | depth AbsRel, one Sim3 scale | Sim3 scale (1 = metric) | change map, metric 5 cm: suitcase / FP | scale-free (median/40): suitcase / FP |
+|---|---|---|---|---|---|
+| pi3 | 4.2 | 0.032 | 1.61 | both / 0 | both / 7 |
+| **Pi3X** | **3.3** | **0.022** | **1.016** | both / 1 | both / 3 |
+| VGGT | 4.1 | 0.025 | 2.31 | both / 1 | both / 12 |
+| DA3 (GIANT-1.1) | 5.7 | 0.036 | 1.97 | both / 0 | both / 5 |
+| MapAnything (apache) | 19.4 | 0.181 | 1.01 | both / 3 | both / 28 |
+
+- MapAnything: focal 283 px vs ~362 true (22% off) explains its errors; may be our image loading, unresolved, not pursued (far behind).
+- Pi3X is near-metric from plain video (scale 1.016): solves the scale problem. Peak memory 81 GB at 243 frames (pi3: 16 GB).
+- S9a rule (suitcase found with <= 4 FP): **PASS** for pi3 metric (0 FP) and Pi3X both variants; scale-free pi3 at median/40 has 7 FP (fails), 0-1 FP at coarser ratios (post-hoc sensitivity, see below).
+
+**(b) Change detection on 15 SD-V val tuning pairs (val[5:20], disjoint from the 5 S1 pairs), official evaluator, obj/sc AP without type (with type):**
+
+| Config | AP | AP typed |
+|---|---|---|
+| pi3, voxel = median depth/25 | 3.5 | 1.8 |
+| pi3, /40 | 8.9 | 4.4 |
+| pi3, /60 | 12.2 | 6.9 |
+| pi3, /60, SAM object layer | 15.2 | 7.5 |
+| pi3, /80 | 15.3 | 7.7 |
+| **pi3, /80, SAM object layer** | **22.0** | **10.7** |
+| pi3, /110 | 8.9 | 5.1 |
+| Pi3X /40, /60, /80 | 5.3, 9.2, 11.4 | |
+| VGGT /60 (conf 10% / 40%) | 4.6 / 7.0 | |
+| DA3 /60 (conf 10% / 40%) | 2.8 / 2.3 | |
+
+- Geometry winner (Pi3X) and change-detection winner (pi3) differ. Open for the user (D11).
+- Failure modes seen (bedroom_2_bedroom_3): carpet-texture noise blobs, wall corners, fragmented masks; SAM fixes mask quality.
+- SceneDiff baseline on the same 15 pairs: running (needed for a like-for-like comparison).

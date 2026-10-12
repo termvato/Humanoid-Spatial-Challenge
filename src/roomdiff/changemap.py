@@ -17,7 +17,7 @@ from scipy import ndimage
 from roomdiff.frames import Frames
 from roomdiff.visibility import LABELS, Grid, classify, compare, components, observe
 
-MAX_VOXELS = 60_000_000  # dense label arrays only; carving is sparse
+MAX_VOXELS = 200_000_000  # dense label arrays only; carving is sparse
 
 
 @dataclass
