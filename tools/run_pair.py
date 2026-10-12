@@ -15,10 +15,9 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from roomdiff.align import refine_between_videos
-from roomdiff.changemap import build, collect_views, frame_points
-from roomdiff.frames import concat, from_recon_npz
+from roomdiff.changemap import collect_views
 from roomdiff.objects import SamRefiner
+from roomdiff.pipeline import run
 
 
 def tile(rgb: np.ndarray, mask: np.ndarray, colour, text: str) -> np.ndarray:
@@ -43,16 +42,8 @@ def main() -> None:
     args = ap.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
 
-    F = from_recon_npz(args.recon)
-    voxel = F.median_depth() / args.div
-    before, after = F.of_video(1), F.of_video(2)
-    pb = np.concatenate([frame_points(before, i) for i in range(len(before))])
-    pa = np.concatenate([frame_points(after, i) for i in range(len(after))])
-    T, f0, f1 = refine_between_videos(pa, pb, voxel)
-    if f1 > f0:
-        after = after.transformed(T)
-    F = concat(before, after)
-    cm = build(before, after, voxel=voxel, min_voxels=args.min_voxels)
+    pair = run(args.recon, div=args.div, min_voxels=args.min_voxels)
+    F, cm, voxel, (f0, f1) = pair.frames, pair.cm, pair.voxel, pair.icp
     # every frame of the pair is "scored" here: resample 1 over the stride-10 frames we have
     views = collect_views(cm, F, resample=int(F.src[1] - F.src[0]), refine=SamRefiner())
     blobs = {b.id: b for b in cm.blobs}

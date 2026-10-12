@@ -2,41 +2,34 @@
 
 Start here. Every other doc is linked from this page. Update the status board at the end of each work unit.
 
-## Status board (2026-10-11)
+## Status board (2026-10-12)
 
 | Area | State | Next action | Owner |
 |---|---|---|---|
-| S1 SceneDiff on 5 val pairs (Modal) | **PASS**: fork SceneDiff; 7 TP, 30 FP, 6 FN | cut SAM cost before scaling | Claude |
-| S2 own phone pair | **borderline**: 3 of 6 found (2 fully right), 4 false alarms; pipeline viable | superseded by S6 | done |
-| S6 keyframes (coverage x sharpness x no-finger) | **FAIL**: same 3 of 6, 7 false alarms; frame choice not the bottleneck | keep uniform; finger filter kept | done |
-| S8 geometric veto | done as fusion in S9 (model depth, not LiDAR) | | done |
-| S9 3D-first on plain video | **(a) PASS** pair01; **(b) 18.0 AP held-out (band: 3D core + SceneDiff channel)**; pair01 5 of 6 found | 30-pair held-out test (~$6.5) | user |
-| D11 model + pipeline shape | proposed | decide | user |
-| pair02 capture (better hygiene, same lighting) | user recording | run SceneDiff + S7 map on it | user |
-| S7 LiDAR 3-state change map | **works**: suitcase move found in 3D, blanket partial, hat = unobserved; 2 edge FPs | fuse with SceneDiff (head A) | Claude |
-| S3 Isaac render speed | **PASS** 9.4 fps, 4.4 GB | none | done |
-| S4 keyless vs gated models | blocked on S1 | run after S1 | Claude |
-| S5 reconstruction models (pi3, Pi3X, VGGT, DA3, MapAnything) | **done**: Pi3X best geometry, pi3 best change detection | D11 decision | user |
-| Training data choice (SceneDiff val / 3RScan / Isaac) | open | decide after S1 | user |
-| Plan (`plan.md`) | not written | write after S1 + S2 | Claude |
+| Architecture (D11) | **decided**: pi3 -> ICP -> voxel carving -> SAM -> DINOv2 matching; SceneDiff as a second channel | | done |
+| Change type (D12) | **decided**: added / removed first, moved is a bonus | | done |
+| Model choice (S5, S10, S12) | **pi3** beats Pi3X, VGGT, DA3, MapAnything, VGGT-Omega on the benchmark | | done |
+| Benchmark (S9) | tuning 34.3, held-out 18.0 vs SceneDiff 32.0, fusion 33.0 (5 pairs, too few) | 30-pair held-out test (~$6.5) when wanted | user |
+| Own rooms (S9e, S11) | pair01 5 of 6 (SceneDiff 3), pair02 4 of 4 + boot unobserved (SceneDiff 3) | | done |
+| Robot maps (`grid2d`, `level`, `tools/make_grid.py`) | **works**: ROS map_server before/after maps, change layer, look mask; boot corner flagged | suggested viewpoints for LOOK cells | Claude |
+| False alarms (walls, edges, shadow) | open: about as many as SceneDiff | size / views / wall-plane filter, tuned on benchmark | Claude |
+| Isaac diff-drive demo | not started (S3: laptop renders 9.4 fps) | after viewpoints | Claude |
+| README + design note | not started | last day | Claude |
 
-## Pipeline (target design, D8)
+## Pipeline (as built, D11)
 
 ```mermaid
 flowchart LR
-    V1[Video 1] --> R[Joint 3D reconstruction<br/>pi3X or DA3]
+    V1[Video 1] --> R[pi3, both videos jointly]
     V2[Video 2] --> R
-    AR[ARKit poses + LiDAR<br/>reference path] -.-> R
-    R --> SEG[Object masks<br/>SAM 2 / SAM 3]
-    R --> VIS[Visibility voxels<br/>changed / unchanged / unobserved]
-    SEG --> CAND[Change candidates<br/>SceneDiff scores]
-    CAND --> A[Head A: verifier<br/>real change vs artifact]
-    A --> B[Head B: matcher<br/>moved vs added + removed]
-    VIS --> OUT
-    B --> OUT[3D change list<br/>boxes, motion, labels]
-    OUT --> LANG[Template sentences<br/>optional Claude rewrite]
-    OUT --> NAV[Costmap delta<br/>unobserved = raised cost]
-    OUT --> VIZ[rerun.io 3D viewer]
+    LID[LiDAR / robot RGB-D<br/>metric, posed] -.-> C
+    R --> ICP[Robust ICP<br/>video 2 onto video 1] --> C[Voxel carving<br/>occupied / free / unknown per visit]
+    C --> D[3D diff<br/>added / removed / unobserved]
+    D --> SAM[SAM object outlines] --> M[DINOv2 matching<br/>moved = removed + added]
+    SD[SceneDiff<br/>appearance channel] -.-> F[Fusion]
+    M --> F
+    D --> G[Robot maps<br/>ROS occupancy + change layer + look mask]
+    F --> OUT[Change list<br/>3D boxes, labels, sentences]
 ```
 
 ## Data sources
