@@ -108,8 +108,21 @@ def save_ros(grid: Grid2D, stem: str | Path) -> Path:
     stem.with_suffix(".yaml").write_text(
         f"image: {stem.with_suffix('.pgm').name}\nmode: trinary\nresolution: {grid.resolution}\n"
         f"origin: [{grid.origin[0]:.4f}, {grid.origin[1]:.4f}, 0.0]\nnegate: 0\n"
-        "occupied_thresh: 0.65\nfree_thresh: 0.25\n")
+        "occupied_thresh: 0.65\nfree_thresh: 0.196\n")  # 205 (unknown) -> 0.196: neither free nor occupied
     return stem.with_suffix(".yaml")
+
+
+def load_ros(yaml_path: str | Path) -> Grid2D:
+    """Read a trinary map_server map written by `save_ros` (or any map_server map: thresholds applied)."""
+    yaml_path = Path(yaml_path)
+    meta = dict(line.split(": ", 1) for line in yaml_path.read_text().splitlines() if ": " in line)
+    img = np.flipud(cv2.imread(str(yaml_path.parent / meta["image"]), cv2.IMREAD_GRAYSCALE)).astype(np.float64)
+    occ = (255 - img) / 255.0
+    data = np.full(img.shape, UNKNOWN_CELL, np.int8)
+    data[occ > float(meta["occupied_thresh"])] = OCC_CELL
+    data[occ < float(meta["free_thresh"])] = FREE_CELL
+    origin = [float(v) for v in meta["origin"].strip("[]").split(",")]
+    return Grid2D(data, float(meta["resolution"]), (origin[0], origin[1]))
 
 
 def save_change_mask(change: Grid2D, stem: str | Path, value: int) -> Path:

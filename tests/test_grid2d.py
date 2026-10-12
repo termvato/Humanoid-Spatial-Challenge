@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 
 from roomdiff.changemap import Blob, ChangeMap
-from roomdiff.grid2d import BLOCKED, FREE_CELL, LOOK, OCC_CELL, UNKNOWN_CELL, robot_maps, save_ros
+from roomdiff.grid2d import BLOCKED, FREE_CELL, LOOK, OCC_CELL, UNKNOWN_CELL, load_ros, robot_maps, save_ros
 from roomdiff.visibility import FREE, LABELS, OCC, UNKNOWN, Grid
 
 
@@ -57,3 +57,6 @@ def test_save_ros_writes_map_server_files(tmp_path):
     assert img.shape == maps.after.data.shape
     assert set(np.unique(img)) <= {0, 205, 254}
     assert (np.flipud(img) == 0).sum() == (maps.after.data == OCC_CELL).sum()
+    back = load_ros(y)
+    assert np.array_equal(back.data, maps.after.data)
+    assert back.resolution == 0.1 and np.allclose(back.origin, maps.after.origin, atol=1e-4)
