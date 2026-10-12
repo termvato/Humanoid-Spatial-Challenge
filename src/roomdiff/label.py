@@ -19,6 +19,14 @@ PROMPT = (
     "frame, shadow, reflection, or an image edge), answer exactly: none"
 )
 NONE = {"none", "nothing", "no object", "n/a"}
+COMPARE = (
+    "Two photos of the same room taken at different times: image 1 from the first visit, image 2 from the "
+    "second, from about the same viewpoint. The red outline marks the same place in 3D in both. Look only "
+    "inside the outlines. Answer 'changed' if an object there is present in one photo and absent, replaced "
+    "or moved in the other. Answer 'same' if the content is the same in both (the same object, or the same "
+    "wall, floor, door or furniture surface), even if lighting or viewpoint differ. Answer with one word: "
+    "changed or same"
+)
 
 
 def best_views(views: dict[int, np.ndarray], k: int = 3) -> list[int]:
@@ -32,6 +40,15 @@ def best_views(views: dict[int, np.ndarray], k: int = 3) -> list[int]:
         if len(picked) == k:
             break
     return picked
+
+
+def closest_poses(T_wc: np.ndarray, f: int, candidates: np.ndarray, scale: float) -> np.ndarray:
+    """Candidate frames ordered by how close their camera is to frame f's: distance / `scale`
+    (e.g. the median depth) plus the angle between viewing directions (radians)."""
+    t, z = T_wc[f][:3, 3], T_wc[f][:3, 2]
+    d = np.linalg.norm(T_wc[candidates][:, :3, 3] - t, axis=1) / scale
+    a = np.arccos(np.clip(T_wc[candidates][:, :3, 2] @ z, -1, 1))
+    return candidates[np.argsort(d + a)]
 
 
 def crop(rgb: np.ndarray, mask: np.ndarray, context: float = 1.0, min_side: int = 224) -> np.ndarray:
@@ -49,6 +66,12 @@ def crop(rgb: np.ndarray, mask: np.ndarray, context: float = 1.0, min_side: int 
     out = img[y0:y1, x0:x1]
     s = min_side / min(out.shape[:2])
     return cv2.resize(out, None, fx=s, fy=s, interpolation=cv2.INTER_CUBIC) if s > 1 else out
+
+
+def changed(answer: str) -> bool | None:
+    """COMPARE answer -> True (changed), False (same), None (unclear)."""
+    a = answer.strip().lower()
+    return True if a.startswith("changed") else False if a.startswith("same") else None
 
 
 def parse(answer: str) -> str | None:

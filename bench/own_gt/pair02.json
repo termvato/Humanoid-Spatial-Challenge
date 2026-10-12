@@ -1,0 +1,7 @@
+{
+  "_note": "Map-frame positions (metres, tools/analyse.py level frame, phone at 1.5 m) of the user's pair02 ground truth (docs/spikes.md S11), read off detections confirmed by the photos and labels (2026-10-13). The box was nudged while the printer was taken from under it: the user counts it as a real change. The black boot is unobserved (before video only) and has no position here.",
+  "printer": {"change": "moved", "visit1": {"pos": [1.28, -0.29]}, "visit2": {"pos": [-1.27, -1.69]}},
+  "box": {"change": "moved", "visit1": {"pos": [1.52, -0.28]}, "visit2": {"pos": [1.49, -0.31]}},
+  "cap": {"change": "added", "visit1": null, "visit2": {"pos": [-0.41, -1.03]}},
+  "white shoe": {"change": "removed", "visit1": {"pos": [0.92, 1.06]}, "visit2": null}
+}

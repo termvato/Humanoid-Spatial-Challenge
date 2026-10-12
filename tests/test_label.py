@@ -1,6 +1,6 @@
 import numpy as np
 
-from roomdiff.label import best_views, crop, parse
+from roomdiff.label import best_views, changed, closest_poses, crop, parse
 
 
 def test_parse():
@@ -26,3 +26,15 @@ def test_crop_contains_outline_and_upscales():
     c = crop(rgb, mask)
     assert min(c.shape[:2]) >= 224
     assert (c[..., 0] == 255).any()  # red outline drawn
+
+
+def test_changed():
+    assert changed("Changed.") is True and changed("same") is False and changed("maybe") is None
+
+
+def test_closest_poses_prefers_near_and_aligned():
+    T = np.tile(np.eye(4), (4, 1, 1))
+    T[1, 0, 3] = 0.1  # close, same direction
+    T[2, 0, 3] = 2.0  # far
+    T[3, :3, :3] = [[0, 0, 1], [0, 1, 0], [-1, 0, 0]]  # same place, looking sideways
+    assert list(closest_poses(T, 0, np.array([3, 2, 1]), scale=1.0)) == [1, 3, 2]
