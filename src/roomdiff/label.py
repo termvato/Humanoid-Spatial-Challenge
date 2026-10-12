@@ -2,7 +2,8 @@
 
 The 3D pipeline says where something changed; a VLM looking at the outlined region names it.
 It may also answer "none" when the outline holds no distinct object (a wall patch, floor,
-shadow, edge or reflection), which is a check on false alarms.
+shadow, edge or reflection). `other_view` finds the same 3D spot in the other video, so a VLM
+can compare the two (COMPARE): a check on false alarms.
 """
 
 from __future__ import annotations
@@ -49,6 +50,22 @@ def closest_poses(T_wc: np.ndarray, f: int, candidates: np.ndarray, scale: float
     d = np.linalg.norm(T_wc[candidates][:, :3, 3] - t, axis=1) / scale
     a = np.arccos(np.clip(T_wc[candidates][:, :3, 2] @ z, -1, 1))
     return candidates[np.argsort(d + a)]
+
+
+def other_view(frames, cm, views: dict, bid: int, min_px: int = 50, tries: int = 10
+               ) -> tuple[int, int, np.ndarray] | None:
+    """(own frame, other-video frame, mask there) for blob `bid`: its best own view and the closest camera
+    in the other video where the blob projects to >= `min_px` visible pixels; None if there is none."""
+    from roomdiff.changemap import blob_mask
+
+    f = best_views(views[bid], k=1)[0]
+    centres = cm.grid.centres_of(next(b for b in cm.blobs if b.id == bid).idx)
+    other = np.flatnonzero(frames.video != frames.video[f])
+    for g in closest_poses(frames.T_wc, f, other, frames.median_depth())[:tries]:
+        m = blob_mask(frames, g, centres, cm.grid.size, cm.tau)
+        if m.sum() >= min_px:
+            return f, int(g), m
+    return None
 
 
 def crop(rgb: np.ndarray, mask: np.ndarray, context: float = 1.0, min_side: int = 224) -> np.ndarray:

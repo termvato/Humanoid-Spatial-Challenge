@@ -25,7 +25,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from roomdiff.changemap import blob_mask, collect_views, drop_small, moved_pairs
+from roomdiff.changemap import collect_views, drop_small, moved_pairs
 from roomdiff.grid2d import (
     BLOCKED,
     FREED,
@@ -37,7 +37,7 @@ from roomdiff.grid2d import (
     save_change_mask,
     save_ros,
 )
-from roomdiff.label import best_views, closest_poses, crop
+from roomdiff.label import best_views, crop, other_view
 from roomdiff.pipeline import level, run, run_lidar
 from roomdiff.report import Change, changes, to_json
 from roomdiff.viewpoints import Viewpoint, drop_unviewable, suggest
@@ -69,27 +69,21 @@ def change_tiles(chs: list[Change], views: dict, rgb: np.ndarray, kinds: dict[in
     return tiles
 
 
-def write_crops(out: Path, chs: list[Change], views: dict, pair, cm, min_px: int = 50) -> None:
-    """Per change and blob, up to 3 outlined crops <change>_<blob>_<k>.jpg from its own video, and for
-    the best one the same 3D spot from the closest camera in the other video, <change>_<blob>_0x.jpg."""
+def write_crops(out: Path, chs: list[Change], views: dict, pair, cm) -> None:
+    """Per change and blob, up to 3 outlined crops <change>_<blob>_<k>.jpg from its own video, and the
+    same 3D spot from the closest camera in the other video, <change>_<blob>_0x.jpg."""
     F = pair.frames
     out.mkdir(exist_ok=True)
-    blobs = {b.id: b for b in cm.blobs}
 
     def save(name, f, m):
         cv2.imwrite(str(out / name), cv2.cvtColor(crop(F.rgb[f], m), cv2.COLOR_RGB2BGR))
     for i, c in enumerate(chs):
         for bid in c.blobs:
-            picks = best_views(views[bid])
-            for k, f in enumerate(picks):
+            for k, f in enumerate(best_views(views[bid])):
                 save(f"{i}_{bid}_{k}.jpg", f, views[bid][f])
-            other = np.flatnonzero(F.video != F.video[picks[0]])
-            centres = cm.grid.centres_of(blobs[bid].idx)
-            for g in closest_poses(F.T_wc, picks[0], other, F.median_depth())[:10]:
-                m = blob_mask(F, g, centres, cm.grid.size, cm.tau)
-                if m.sum() >= min_px:
-                    save(f"{i}_{bid}_0x.jpg", g, m)
-                    break
+            o = other_view(F, cm, views, bid)
+            if o:
+                save(f"{i}_{bid}_0x.jpg", o[1], o[2])
 
 
 def draw_map(maps: RobotMaps, chs: list[Change], vps: list[Viewpoint]) -> np.ndarray:

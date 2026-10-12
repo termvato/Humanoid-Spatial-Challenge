@@ -17,8 +17,35 @@ import pickle
 from pathlib import Path
 
 from roomdiff.changemap import collect_views, drop_small, export
+from roomdiff.label import COMPARE, changed, crop, other_view
 from roomdiff.objects import DinoDescriptor, SamRefiner
 from roomdiff.pipeline import run
+
+
+def vlm_verdicts(pair, views: dict, cache: Path) -> dict[int, bool | None]:
+    """Blob id -> VLM 'changed' (True), 'same' (False) or unclear (None), from its best view next to the
+    closest view of the same spot in the other video (first visit first). Cached per scene and setting."""
+    import cv2
+    import modal
+
+    if cache.exists():
+        return {int(k): v for k, v in json.loads(cache.read_text()).items()}
+    F, cm = pair.frames, pair.cm
+    kinds = {b.id: b.kind for b in cm.blobs}
+    ids, items = [], []
+    for bid in views:
+        o = other_view(F, cm, views, bid)
+        if o is None:
+            continue
+        f, g, m = o
+        own, oth = crop(F.rgb[f], views[bid][f]), crop(F.rgb[g], m)
+        pair_imgs = [own, oth] if kinds[bid] == "removed" else [oth, own]
+        ids.append(bid)
+        items.append([cv2.imencode(".jpg", cv2.cvtColor(im, cv2.COLOR_RGB2BGR))[1].tobytes() for im in pair_imgs])
+    answers = modal.Cls.from_name("roomdiff-vlm", "VLM")().ask.remote(items, COMPARE) if items else []
+    out = {b: changed(a) for b, a in zip(ids, answers, strict=True)}
+    cache.write_text(json.dumps(out))
+    return out
 
 
 def main() -> None:
@@ -36,6 +63,7 @@ def main() -> None:
     ap.add_argument("--slant", action="store_true", help="free margin measured along the surface normal")
     ap.add_argument("--footprint", action="store_true", help="free only if the whole voxel is seen past")
     ap.add_argument("--min-extent", type=float, default=0.0, help="drop blobs whose largest side is under this many voxels")
+    ap.add_argument("--vlm-check", action="store_true", help="drop blobs a VLM judges unchanged (S16)")
     ap.add_argument("--recon-dir", type=Path, default=Path("outputs/recon"))
     ap.add_argument("--out", type=Path, required=True)
     args = ap.parse_args()
@@ -61,6 +89,9 @@ def main() -> None:
             cache.write_bytes(pickle.dumps(views))
         if args.min_extent:
             views = drop_small(views, pair.cm, args.min_extent)
+        if args.vlm_check:
+            verdict = vlm_verdicts(pair, views, cache.with_suffix(".vlm.json"))
+            views = {k: v for k, v in views.items() if verdict.get(k) is not False}
         pred = export(pair.cm, pair.frames, views, match=match, descriptor=descriptor)
         d = args.out / "pred" / scene
         d.mkdir(parents=True, exist_ok=True)
