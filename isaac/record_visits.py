@@ -68,7 +68,11 @@ def trajectory(visit: int, n: int):
 def main() -> None:
     global LOG
     os.makedirs(args.out, exist_ok=True)
-    LOG = open(f"{args.out}/progress.log", "w")
+    with open(f"{args.out}/progress.log", "w") as LOG:
+        record()
+
+
+def record() -> None:
     log("loading scene")
     scene.load(app)
     log("scene loaded")
