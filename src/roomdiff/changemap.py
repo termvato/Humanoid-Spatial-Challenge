@@ -18,6 +18,7 @@ from roomdiff.frames import Frames, incidence_cos
 from roomdiff.visibility import LABELS, Grid, classify, compare, components, observe
 
 MAX_VOXELS = 200_000_000  # dense label arrays only; carving is sparse
+SLANT_COS_MIN = 0.1  # free margin at most 10 tau
 
 
 @dataclass
@@ -56,25 +57,32 @@ def frame_points(frames: Frames, i: int, step: int = 4) -> np.ndarray:
     return pc @ T[:3, :3].T + T[:3, 3]
 
 
-def carve(frames: Frames, centres: np.ndarray, tau: float, max_incidence: float | None = None
-          ) -> tuple[np.ndarray, np.ndarray]:
-    """Hit and free view counts per voxel. `max_incidence` (deg): pixels seeing their surface more
-    obliquely than this give no free evidence (a ray skimming a surface lands far behind it)."""
+def carve(frames: Frames, centres: np.ndarray, tau: float, max_incidence: float | None = None,
+          slant: bool = False, voxel: float | None = None) -> tuple[np.ndarray, np.ndarray]:
+    """Hit and free view counts per voxel. A ray skimming a surface lands far behind it and would carve
+    the surface itself. `max_incidence` (deg): pixels seeing their surface more obliquely give no free
+    evidence. `slant`: the free margin is tau measured along the surface normal, i.e. tau / cos(incidence)
+    along the ray (cos floored at SLANT_COS_MIN). `voxel`: free only if the whole voxel is in front
+    of the surface (`visibility.observe`)."""
     hits = np.zeros(len(centres), np.uint16)
     frees = np.zeros(len(centres), np.uint16)
     cos_min = None if max_incidence is None else np.cos(np.radians(max_incidence))
     for i in range(len(frames)):
-        fv = None if cos_min is None else incidence_cos(frames.depth[i], frames.K[i]) >= cos_min
+        c = incidence_cos(frames.depth[i], frames.K[i]) if cos_min is not None or slant else None
+        fv = None if cos_min is None else c >= cos_min
+        ft = tau / np.maximum(c, SLANT_COS_MIN) if slant else None
         h, f = observe(centres, frames.depth[i], frames.K[i], frames.T_wc[i], tau=tau, valid=frames.valid[i],
-                       free_valid=fv)
+                       free_valid=fv, free_tau=ft, voxel=voxel)
         hits += h
         frees += f
     return hits, frees
 
 
 def build(before: Frames, after: Frames, voxel: float, tau: float | None = None, min_voxels: int = 15,
-          min_views: int = 2, bounds_pct: float = 1.0, max_incidence: float | None = None) -> ChangeMap:
-    """Change map of two visits in one world frame. `tau` defaults to one voxel; see `carve` for max_incidence."""
+          min_views: int = 2, bounds_pct: float = 1.0, max_incidence: float | None = None,
+          slant: bool = False, footprint: bool = False) -> ChangeMap:
+    """Change map of two visits in one world frame. `tau` defaults to one voxel; see `carve` for
+    max_incidence, slant and footprint (free only if the whole voxel is seen past)."""
     tau = voxel if tau is None else tau
     pts = np.concatenate([frame_points(f, i, step=2) for f in (before, after) for i in range(len(f))])
     lo, hi = np.percentile(pts, bounds_pct, axis=0), np.percentile(pts, 100 - bounds_pct, axis=0)
@@ -90,8 +98,8 @@ def build(before: Frames, after: Frames, voxel: float, tau: float | None = None,
     n = int(np.prod(grid.shape))
     sb = np.zeros(n, np.uint8)
     sa = np.zeros(n, np.uint8)
-    sb[cand] = classify(*carve(before, centres, tau, max_incidence), min_views=min_views)
-    sa[cand] = classify(*carve(after, centres, tau, max_incidence), min_views=min_views)
+    sb[cand] = classify(*carve(before, centres, tau, max_incidence, slant, voxel if footprint else None), min_views=min_views)
+    sa[cand] = classify(*carve(after, centres, tau, max_incidence, slant, voxel if footprint else None), min_views=min_views)
     lab = compare(sb, sa, grid.shape)
     blobs = []
     for kind in ("removed", "added"):

@@ -32,7 +32,8 @@ def points(frames: Frames, step: int = 4) -> np.ndarray:
 
 
 def run(recon: str | Path, div: float = 80, min_voxels: int = 5, icp: bool = True, min_conf: float = 0.1,
-        max_incidence: float | None = None) -> Pair:
+        max_incidence: float | None = None, slant: bool = False,
+        footprint: bool = False) -> Pair:
     """Voxel = median depth / `div` (scale-free); defaults are the settings tuned in S9."""
     F = from_recon_npz(recon, min_conf=min_conf)
     voxel = F.median_depth() / div
@@ -42,7 +43,8 @@ def run(recon: str | Path, div: float = 80, min_voxels: int = 5, icp: bool = Tru
         T, f0, f1 = refine_between_videos(points(after), points(before), voxel)
         if f1 > f0:
             after = after.transformed(T)
-    cm = build(before, after, voxel=voxel, min_voxels=min_voxels, max_incidence=max_incidence)
+    cm = build(before, after, voxel=voxel, min_voxels=min_voxels, max_incidence=max_incidence,
+               slant=slant, footprint=footprint)
     return Pair(concat(before, after), cm, voxel, (f0, f1))
 
 

@@ -2,7 +2,9 @@
 
 For every voxel centre and every depth frame, project the centre into the frame:
 - hit:  measured depth agrees with the voxel depth (within `tau`): a surface is there
-- free: the camera saw past the voxel (measured depth > voxel depth + tau): it is empty
+- free: the camera saw past the voxel (measured depth > voxel depth + tau): it is empty.
+  With `voxel` given, past the whole voxel: the nearest depth over its projected footprint
+  counts (conservative carving), so a ray grazing past a nearby surface does not empty it
 - nothing otherwise (outside the image, invalid depth, or hidden behind a surface)
 
 Per video, counts become a state: OCC, FREE or UNKNOWN. Comparing two videos:
@@ -63,12 +65,17 @@ def observe(
     tau: float = 0.05,
     valid: np.ndarray | None = None,
     free_valid: np.ndarray | None = None,
+    free_tau: np.ndarray | None = None,
+    voxel: float | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Boolean (hit, free) per voxel centre for one depth frame (OpenCV camera axes).
 
     `valid` masks depth pixels to trust (confidence, range, edges); default: depth > 0.
     `free_valid` further restricts which pixels may declare voxels free (e.g. not at grazing angles).
+    `free_tau` (per pixel, >= tau) widens the margin a voxel must lie in front of the depth to count as free.
+    `voxel`: free needs the whole voxel in front of the depth, not just its centre's ray (see module doc).
     """
+    ok_px = depth > 0
     R, t = T_wc[:3, :3], T_wc[:3, 3]
     pc = (centres - t) @ R  # world -> camera: R^T (x - t), written for row vectors
     z = pc[:, 2]
@@ -86,10 +93,31 @@ def observe(
         ok &= valid[v[inside], u[inside]]
     zs = z[sel]
     hit[sel] = ok & (np.abs(zs - d) <= tau)
-    free[sel] = ok & (zs < d - tau)
+    margin = tau if free_tau is None else free_tau[v[inside], u[inside]]
+    if voxel is not None:
+        d = footprint_depth(depth, ok_px if valid is None else valid & ok_px, u[inside], v[inside],
+                            K[0, 0] * voxel * np.sqrt(3) / zs)
+    free[sel] = ok & (zs < d - margin)
     if free_valid is not None:
         free[sel] &= free_valid[v[inside], u[inside]]
     return hit, free
+
+
+FOOTPRINT_SIZES = (1, 3, 5, 9, 17, 33, 65)  # window sides, pixels
+
+
+def footprint_depth(depth: np.ndarray, valid: np.ndarray, u: np.ndarray, v: np.ndarray, diameter: np.ndarray
+                    ) -> np.ndarray:
+    """Nearest valid depth in a square window around each (u, v), the smallest listed side >= `diameter` px.
+    Invalid pixels are ignored (a window with none returns inf)."""
+    d = np.where(valid, depth, np.inf)
+    side = np.searchsorted(FOOTPRINT_SIZES, np.minimum(diameter, FOOTPRINT_SIZES[-1]))
+    out = np.empty(len(u))
+    for k in np.unique(side):
+        m = side == k
+        img = d if FOOTPRINT_SIZES[k] == 1 else ndimage.minimum_filter(d, size=FOOTPRINT_SIZES[k])
+        out[m] = img[v[m], u[m]]
+    return out
 
 
 def classify(hits: np.ndarray, frees: np.ndarray, min_views: int = 2, occ_ratio: float = 0.5) -> np.ndarray:

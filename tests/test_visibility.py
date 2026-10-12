@@ -99,3 +99,13 @@ def test_free_valid_blocks_free_evidence_only():
     c = np.array([[0.0, 0.0, 2.0], [0.0, 0.0, 4.0]])  # in front of the surface, on it
     h, f = observe(c, d, K1, np.eye(4), tau=0.05, free_valid=np.zeros((10, 10), bool))
     assert not f[0] and h[1]
+
+
+def test_footprint_keeps_voxel_beside_a_thin_surface():
+    d = np.full((100, 100), 3.0)
+    d[:, 53:55] = 2.0  # thin pole at z = 2, just right of the centre ray (x ~ 0.03 .. 0.05)
+    c = np.array([[0.0, 0.0, 2.0], [-0.5, 0.0, 2.0]])  # voxel touching the pole; voxel far from it
+    _, f = observe(c, d, K, np.eye(4), tau=0.05)
+    assert f.all()  # centre rays both see the wall behind
+    _, f = observe(c, d, K, np.eye(4), tau=0.05, voxel=SIZE)
+    assert not f[0] and f[1]  # the whole voxel is not seen past when the pole cuts its footprint

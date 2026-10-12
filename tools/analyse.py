@@ -96,6 +96,8 @@ def main() -> None:
     ap.add_argument("--no-icp", action="store_true", help="poses are exact (simulation): skip ICP between visits")
     ap.add_argument("--no-sam", action="store_true")
     ap.add_argument("--max-incidence", type=float, default=0.0, help="no free evidence beyond this angle (0 = off)")
+    ap.add_argument("--slant", action="store_true", help="free margin measured along the surface normal")
+    ap.add_argument("--footprint", action="store_true", help="free only if the whole voxel is seen past")
     ap.add_argument("--match", type=float, default=0.5, help="moved matching: min DINOv2 cosine (0 = off)")
     ap.add_argument("--res", type=float, default=0.05, help="map cell, metres")
     ap.add_argument("--band", type=float, nargs=2, default=(0.10, 1.80), help="robot height band, metres")
@@ -105,7 +107,8 @@ def main() -> None:
 
     lidar = args.input.is_dir()
     pair = run_lidar(args.input) if lidar else run(args.input, div=args.div, icp=not args.no_icp,
-                                                    max_incidence=args.max_incidence or None)
+                                                    max_incidence=args.max_incidence or None, slant=args.slant,
+                                                    footprint=args.footprint)
     T, scale = level(pair, metric=lidar or args.metric, scale=args.scale)
     F, cm = pair.frames, pair.cm
     colour = F.rgb is not None
