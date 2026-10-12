@@ -214,3 +214,6 @@ Same frames for every model (every 10th frame, both videos in one call), same lo
 - The mirror produced phantom changes in the LiDAR map (depth into the reflection), only edge noise in the plain-video map.
 - Plain video beat LiDAR on small objects here (1.1 cm vs 5 cm voxels).
 - Artifacts: outputs/s9/pair02_d80/ (objects.jpg, boot_before.jpg), outputs/s7_pair02/, outputs/sd/own/pair02/objects.jpg.
+- User check of the extra detections: box moved a little while taking the printer out (real, acceptable); #2 likely the user's shadow; bench clothes and the LiDAR door (B3) unchanged; boot was seen in the before video only (confirms unobserved).
+- Final count, pair02. 3D pipeline: 4 of 4 changes + boot unobserved, ~8 false alarms (shadow, bench, 6 small edges). LiDAR: printer only, 4 false alarms (2 mirror, floor, door). SceneDiff: 3 of 4, ~9 false alarms (bench, walls, doors).
+- New failure source: a shadow made a pi3 "added" blob, so the plain-video map is not fully lighting-immune (pi3 depth comes from pixels). The LiDAR map is.
