@@ -25,11 +25,11 @@ def test_crop_contains_outline_and_upscales():
     mask[200:220, 300:330] = True
     c = crop(rgb, mask)
     assert min(c.shape[:2]) >= 224
-    assert (c[..., 0] == 255).any()  # red outline drawn
+    assert (c[..., 0] == 255).any()  # red box drawn
 
 
 def test_changed():
-    assert changed("Changed.") is True and changed("same") is False and changed("maybe") is None
+    assert changed("Yes.") is True and changed("no") is False and changed("maybe") is None
 
 
 def test_closest_poses_prefers_near_and_aligned():
