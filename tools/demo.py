@@ -102,11 +102,13 @@ def plan(args) -> None:
     stacked = {n: [m for m in gt if m != n and gt[m]["visit2"] and gt[n]["visit2"]
                    and gt[m]["visit2"]["pos"] == gt[n]["visit2"]["pos"] and gt[m]["change"] == gt[n]["change"]]
                for n in gt}
-    for c in changes:
+    restored: set[str] = set()
+    for c in changes:  # largest first, so a fragmented object is restored from its biggest piece
         name = by_change.get(c["id"])
-        if name is None:
+        if name is None or name in restored:
             continue
         group = [name, *stacked[name]]
+        restored.update(group)
         if c["kind"] == "moved":
             src = np.array(props[name])
             dst = map_to_world(T, tuple(c["before"]["centre"]))[:2]

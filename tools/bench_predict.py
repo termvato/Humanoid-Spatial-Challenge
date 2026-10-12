@@ -32,6 +32,7 @@ def main() -> None:
     ap.add_argument("--no-sam", action="store_true", help="coarse projected masks instead of SAM outlines")
     ap.add_argument("--match", type=float, default=0.5, help="moved matching: min DINOv2 cosine (0 = off)")
     ap.add_argument("--match-size", type=float, default=0.4, help="moved matching: min voxel count ratio")
+    ap.add_argument("--max-incidence", type=float, default=0.0, help="no free evidence beyond this angle (0 = off)")
     ap.add_argument("--recon-dir", type=Path, default=Path("outputs/recon"))
     ap.add_argument("--out", type=Path, required=True)
     args = ap.parse_args()
@@ -41,11 +42,12 @@ def main() -> None:
     summary = {}
     for scene in args.scenes.split(","):
         pair = run(args.recon_dir / f"{args.model}_{scene}.npz", div=args.div, min_voxels=args.min_voxels,
-                   icp=not args.no_icp, min_conf=args.min_conf)
+                   icp=not args.no_icp, min_conf=args.min_conf,
+                   max_incidence=args.max_incidence or None)
         # SAM masks are the slow part: cached per scene and setting (name kept from the S9 sweeps)
         cache = Path("outputs/s9/cache") / (f"{args.model}_{scene}_d{args.div:g}_v{args.min_voxels}_g0"
                                             f"_c{args.min_conf:g}_{'none' if args.no_sam else 'sam'}"
-                                            f"{'' if args.no_icp else '_icp'}.pkl")
+                                            f"{'' if args.no_icp else '_icp'}{f'_i{args.max_incidence:g}' if args.max_incidence else ''}.pkl")
         if cache.exists():
             views = pickle.loads(cache.read_bytes())
         else:

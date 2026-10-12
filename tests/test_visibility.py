@@ -91,3 +91,11 @@ def test_components_split_and_size_filter():
     comps = components(m.ravel(), shape, min_voxels=1)
     assert [len(c) for c in comps] == [4, 3]  # largest first
     assert len(components(m.ravel(), shape, min_voxels=4)) == 1
+
+
+def test_free_valid_blocks_free_evidence_only():
+    K1 = np.array([[10.0, 0, 5], [0, 10, 5], [0, 0, 1]])
+    d = np.full((10, 10), 4.0)
+    c = np.array([[0.0, 0.0, 2.0], [0.0, 0.0, 4.0]])  # in front of the surface, on it
+    h, f = observe(c, d, K1, np.eye(4), tau=0.05, free_valid=np.zeros((10, 10), bool))
+    assert not f[0] and h[1]

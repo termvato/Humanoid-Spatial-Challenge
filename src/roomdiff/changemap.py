@@ -14,7 +14,7 @@ import cv2
 import numpy as np
 from scipy import ndimage
 
-from roomdiff.frames import Frames
+from roomdiff.frames import Frames, incidence_cos
 from roomdiff.visibility import LABELS, Grid, classify, compare, components, observe
 
 MAX_VOXELS = 200_000_000  # dense label arrays only; carving is sparse
@@ -56,19 +56,25 @@ def frame_points(frames: Frames, i: int, step: int = 4) -> np.ndarray:
     return pc @ T[:3, :3].T + T[:3, 3]
 
 
-def carve(frames: Frames, centres: np.ndarray, tau: float) -> tuple[np.ndarray, np.ndarray]:
+def carve(frames: Frames, centres: np.ndarray, tau: float, max_incidence: float | None = None
+          ) -> tuple[np.ndarray, np.ndarray]:
+    """Hit and free view counts per voxel. `max_incidence` (deg): pixels seeing their surface more
+    obliquely than this give no free evidence (a ray skimming a surface lands far behind it)."""
     hits = np.zeros(len(centres), np.uint16)
     frees = np.zeros(len(centres), np.uint16)
+    cos_min = None if max_incidence is None else np.cos(np.radians(max_incidence))
     for i in range(len(frames)):
-        h, f = observe(centres, frames.depth[i], frames.K[i], frames.T_wc[i], tau=tau, valid=frames.valid[i])
+        fv = None if cos_min is None else incidence_cos(frames.depth[i], frames.K[i]) >= cos_min
+        h, f = observe(centres, frames.depth[i], frames.K[i], frames.T_wc[i], tau=tau, valid=frames.valid[i],
+                       free_valid=fv)
         hits += h
         frees += f
     return hits, frees
 
 
 def build(before: Frames, after: Frames, voxel: float, tau: float | None = None, min_voxels: int = 15,
-          min_views: int = 2, bounds_pct: float = 1.0) -> ChangeMap:
-    """Change map of two visits in one world frame. `tau` defaults to one voxel."""
+          min_views: int = 2, bounds_pct: float = 1.0, max_incidence: float | None = None) -> ChangeMap:
+    """Change map of two visits in one world frame. `tau` defaults to one voxel; see `carve` for max_incidence."""
     tau = voxel if tau is None else tau
     pts = np.concatenate([frame_points(f, i, step=2) for f in (before, after) for i in range(len(f))])
     lo, hi = np.percentile(pts, bounds_pct, axis=0), np.percentile(pts, 100 - bounds_pct, axis=0)
@@ -84,8 +90,8 @@ def build(before: Frames, after: Frames, voxel: float, tau: float | None = None,
     n = int(np.prod(grid.shape))
     sb = np.zeros(n, np.uint8)
     sa = np.zeros(n, np.uint8)
-    sb[cand] = classify(*carve(before, centres, tau), min_views=min_views)
-    sa[cand] = classify(*carve(after, centres, tau), min_views=min_views)
+    sb[cand] = classify(*carve(before, centres, tau, max_incidence), min_views=min_views)
+    sa[cand] = classify(*carve(after, centres, tau, max_incidence), min_views=min_views)
     lab = compare(sb, sa, grid.shape)
     blobs = []
     for kind in ("removed", "added"):

@@ -76,3 +76,17 @@ def test_depth_edges_marks_discontinuity_only():
     d[:, 5:] = 2.0
     e = depth_edges(d)
     assert e[:, 4:6].all() and not e[:, :3].any() and not e[:, 7:].any()
+
+
+def test_incidence_cos_head_on_and_slanted():
+    from roomdiff.frames import incidence_cos
+
+    K = np.array([[100.0, 0, 50], [0, 100, 50], [0, 0, 1]])
+    flat = np.full((100, 100), 2.0)
+    c = incidence_cos(flat, K)
+    assert np.isclose(c[50, 50], 1.0, atol=1e-6) and (c[40:60, 40:60] > 0.98).all()  # wall seen head-on
+    v = np.arange(100)[:, None] * np.ones((1, 100))
+    # floor 1 m below the camera: depth z = f * h / (v - cy) for rows below the horizon
+    floor = np.where(v > 55, 100 * 1.0 / np.maximum(v - 50, 1e-6), 0.0)
+    c = incidence_cos(floor, K)
+    assert c[60, 50] < c[95, 50] < 1.0  # farther floor (nearer the horizon) is seen more obliquely

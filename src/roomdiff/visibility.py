@@ -62,10 +62,12 @@ def observe(
     T_wc: np.ndarray,
     tau: float = 0.05,
     valid: np.ndarray | None = None,
+    free_valid: np.ndarray | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Boolean (hit, free) per voxel centre for one depth frame (OpenCV camera axes).
 
     `valid` masks depth pixels to trust (confidence, range, edges); default: depth > 0.
+    `free_valid` further restricts which pixels may declare voxels free (e.g. not at grazing angles).
     """
     R, t = T_wc[:3, :3], T_wc[:3, 3]
     pc = (centres - t) @ R  # world -> camera: R^T (x - t), written for row vectors
@@ -83,9 +85,10 @@ def observe(
     if valid is not None:
         ok &= valid[v[inside], u[inside]]
     zs = z[sel]
-    t = tau
-    hit[sel] = ok & (np.abs(zs - d) <= t)
-    free[sel] = ok & (zs < d - t)
+    hit[sel] = ok & (np.abs(zs - d) <= tau)
+    free[sel] = ok & (zs < d - tau)
+    if free_valid is not None:
+        free[sel] &= free_valid[v[inside], u[inside]]
     return hit, free
 
 

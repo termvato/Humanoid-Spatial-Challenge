@@ -20,8 +20,8 @@ PROPS = {
     "cabinet": ("/Isaac/Props/Sektion_Cabinet/sektion_cabinet_instanceable.usd", 0,
                 {1: (-3.2, 2.9), 2: (2.9, -2.3)}, "moved"),
     "dolly": ("/Isaac/Props/Dolly/dolly.usd", 90, {1: (3.2, 2.8), 2: None}, "removed"),
-    "bins": ("/Isaac/Props/KLT_Bin/small_KLT_visual.usd", 0, {1: None, 2: (-2.6, -2.0)}, "added"),
-    "bins_top": ("/Isaac/Props/KLT_Bin/small_KLT_visual.usd", 0, {1: None, 2: (-2.6, -2.0)}, "added"),
+    "bins": ("/Isaac/Props/KLT_Bin/small_KLT_visual.usd", 0, {1: None, 2: (1.6, 3.9)}, "added"),
+    "bins_top": ("/Isaac/Props/KLT_Bin/small_KLT_visual.usd", 0, {1: None, 2: (1.6, 3.9)}, "added"),
     "corner_bin": ("/Isaac/Props/KLT_Bin/small_KLT_visual.usd", 30, {1: (-3.85, -2.75), 2: (-3.85, -2.75)},
                    "unobserved"),
     "mug_a": ("/Isaac/Props/Mugs/SM_Mug_A2.usd", 0, {1: (-0.4, 0.2), 2: (-0.4, 0.2)}, "unchanged"),
@@ -48,6 +48,11 @@ def load(app, settle: int = 30) -> None:
         UsdGeom.XformCommonAPI(prim).SetRotate(Gf.Vec3f(0, 0, yaw))
     for _ in range(settle):  # let assets stream in before measuring them
         app.update()
+    # Some room meshes are single-sided: seen from behind they vanish from colour AND depth, which
+    # would look like "removed". Real surfaces have two sides.
+    for prim in stage.Traverse():
+        if prim.IsA(UsdGeom.Mesh):
+            UsdGeom.Mesh(prim).CreateDoubleSidedAttr().Set(True)
 
 
 def set_visit(app, visit: int) -> dict:

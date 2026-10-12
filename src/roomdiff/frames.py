@@ -63,6 +63,21 @@ def depth_edges(depth: np.ndarray, rtol: float = 0.03) -> np.ndarray:
     return (hi - lo) > rtol * np.maximum(depth, 1e-6)
 
 
+def incidence_cos(depth: np.ndarray, K: np.ndarray) -> np.ndarray:
+    """|cos| of the angle between each pixel's viewing ray and the surface normal (1 = head-on, 0 = grazing).
+
+    Normals from the cross product of the back-projected points' image-space gradients;
+    pixels without depth get 1 (they are masked elsewhere).
+    """
+    h, w = depth.shape
+    u, v = np.meshgrid(np.arange(w), np.arange(h))
+    p = np.stack([(u - K[0, 2]) * depth / K[0, 0], (v - K[1, 2]) * depth / K[1, 1], depth], -1)
+    n = np.cross(np.gradient(p, axis=1), np.gradient(p, axis=0))
+    nn = np.linalg.norm(n, axis=-1) * np.linalg.norm(p, axis=-1)
+    c = np.abs((n * p).sum(-1)) / np.where(nn > 0, nn, 1)
+    return np.where((depth > 0) & (nn > 0), c, 1.0)
+
+
 def concat(a: Frames, b: Frames) -> Frames:
     rgb = None if a.rgb is None or b.rgb is None else np.concatenate([a.rgb, b.rgb])
     return Frames(*(np.concatenate([getattr(a, k), getattr(b, k)])
