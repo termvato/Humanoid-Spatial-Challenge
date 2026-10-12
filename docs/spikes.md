@@ -13,6 +13,24 @@ Each spike has a pass/fail rule written BEFORE running it, so the result decides
 | S7 | Can LiDAR geometry give a 3-state map? | Voxel carving of both captures after registration | (no rule written in advance; result only) | laptop |
 | S9 | Is 3D-first viable on plain video (D10)? | pi3 jointly on both videos -> S7 carving with model depth. (a) pair01 vs the LiDAR map. (b) the 5 S1 val pairs, 3D blobs projected to 2D masks, official SceneDiff evaluator | (a) suitcase move found (both blobs) with <= 4 false-alarm blobs. (b) obj/sc AP (no type) >= 26 (0.8 x SceneDiff's 32.0) -> 3D-first core. 13-26 -> 3D core plus SceneDiff appearance as a second channel. < 13 -> keep SceneDiff primary, LiDAR-only 3D layer | ~$1 |
 
+## Summary of all tests (2026-10-12)
+
+| Test | Question | Verdict | What we concluded |
+|---|---|---|---|
+| S1 | Is SceneDiff real and runnable? | PASS | Runs, numbers near the paper's. It is the baseline: 32.0 AP on 5 val pairs, but 30 false alarms vs 7 hits |
+| S2 | Does SceneDiff work on our phone video? | borderline FAIL | 3 of 6 changes on pair01. Misses blanket, hat, pen; light change causes wall false alarms |
+| S3 | Can the laptop run Isaac Sim? | PASS | 9.4 fps, 4.4 GB VRAM. Fine for the robot demo |
+| S4 | Keyless vs gated models | not run | Superseded: we got access to the gated models (DINOv3, SAM 3) |
+| S5 | Which reconstruction model? | done | Best geometry: Pi3X (3.3 cm, near metric scale). Best change detection: pi3, at every setting. VGGT, DA3, MapAnything behind on both |
+| S6 | Do better keyframes fix SceneDiff's misses? | FAIL | No. Same 3 of 6, more false alarms. Its misses are the detector, not the frames |
+| S7 | Can LiDAR give a changed / unchanged / unobserved map? | result only | Yes: suitcase found, honest unobserved band, 2 false alarms. Needed gravity alignment and the Stray pose fix |
+| S8 | Geometric veto of SceneDiff false alarms | folded into S9 | Became the fusion experiment |
+| S9a | Does the 3D map work from plain video? | PASS | pi3 metric map finds the suitcase with 0 false alarms |
+| S9b | 3D-first vs SceneDiff on the benchmark | middle band | Held-out 18.0 vs SceneDiff 32.0; fusion 33.0. Rule says: 3D core plus SceneDiff as a second channel. 5 pairs too few to rank |
+| S9e | Full 3D pipeline on our room, plain video | strong result | 5 of 6 changes vs SceneDiff's 3. False alarms on walls above the wardrobe |
+
+Component choices inside the 3D pipeline (tuning pairs, each kept only if it raised AP): finer voxels (median depth/80: 3.5 -> 15.3), robust ICP between videos (+2.6), SAM object outlines (+7.6 with ICP), DINOv2 moved matching (25.5 -> 34.3). Rejected: colour-histogram matching, depth-scaled tolerance, smart keyframes.
+
 ## Results
 
 ### S3: PASS (2026-10-11)
