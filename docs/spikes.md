@@ -39,6 +39,7 @@ Each spike has a pass/fail rule written BEFORE running it, so the result decides
 | S12 | Does VGGT-Omega beat pi3? | pi3 stays | Best depth on pair01 (2.0%), but benchmark 13.0 vs pi3 17.9 at the geometry stage |
 | S9e | Full 3D pipeline on our room, plain video | strong result | 5 of 6 changes vs SceneDiff's 3. False alarms on walls above the wardrobe |
 | S14 | Conservative carving (whole voxel seen past, normal margin) | not adopted | Tuning 35.4 with 24% fewer objects, but held-out 17.2 < 18.0. 5 pairs too few to tell; off by default |
+| S17 | VLM verdict as a score (x0.1 when it says unchanged) | **adopted** | Tuning 34.3 -> 38.1 (typed 23.6 -> 28.9); held-out 18.0 -> 23.1 (typed 12.6 -> 21.4, above SceneDiff's 15.8; untyped still below its 32.0) |
 | S16 | VLM before/after check as a filter | not adopted | Own pairs: false alarms 46 -> 6 and 33 -> 6 with fp+slant, no change lost (dev data). Tuning AP 31.2 (objects 283 -> 136): it drops real benchmark changes |
 | S15 | Minimum object size | not adopted | Only 4 voxels keeps tuning AP (33.9); 6+ voxels cost 3+ AP. The benchmark is full of small objects; size cannot be the false-alarm filter |
 
@@ -276,3 +277,18 @@ Same frames for every model (every 10th frame, both videos in one call), same lo
 
 - Fails the rule (31.2 < 33.3). On the benchmark the filter removes real changes too (pixel IoU 0.59 -> 0.37). Own pairs were development data, so their strong result does not count as the test.
 - Verdicts cached per scene (outputs/s9/cache/*.vlm.json), so rescoring (S17) costs only the evaluator. Modal spend ~$0.5.
+
+### S17: VLM verdict as a score, adopted (2026-10-13)
+
+| Tuning pairs | AP | typed | | Held-out 5 | AP | typed |
+|---|---|---|---|---|---|---|
+| Current | 34.3 | 23.6 | | Current | 18.0 | 12.6 |
+| x0.1 | **38.1** | **28.9** | | x0.1 | **23.1** | **21.4** |
+| x0.3 | 37.8 | 27.5 | | fp+slant x0.1 (info) | 20.9 | 15.4 |
+| fp+slant x0.1 | 37.6 | 28.6 | | SceneDiff | 32.0 | 15.8 |
+| fp+slant x0.3 | 38.0 | 27.6 | | | | |
+
+- Rule passed: best tuning variant (x0.1, current carving) >= 34.3, and held-out 23.1 >= 18.0. Default in tools/bench_predict.py; tools/label.py marks such changes "confident": false (listed last, not deleted).
+- Same signal, two uses: as a filter it lost real changes (S16), as a ranking it lifts both AP and typed AP. Typed AP gains most: noise blobs no longer outrank real ones in moved pairing order.
+- Held-out typed AP now beats SceneDiff (21.4 vs 15.8); untyped AP is still behind (23.1 vs 32.0). 5 pairs, 13 objects: indicative only.
+- On own pairs (development data), the confident list: pair01 5/6 with 6 false alarms (fp+slant carving) or 4/6 with 12 (current); pair02 4/4 with 6 or 9.

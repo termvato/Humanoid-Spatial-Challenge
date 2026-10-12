@@ -9,11 +9,12 @@ Start here. Every other doc is linked from this page. Update the status board at
 | Architecture (D11) | **decided**: pi3 -> ICP -> voxel carving -> SAM -> DINOv2 matching; SceneDiff as a second channel | | done |
 | Change type (D12) | **decided**: added / removed first, moved is a bonus | | done |
 | Model choice (S5, S10, S12) | **pi3** beats Pi3X, VGGT, DA3, MapAnything, VGGT-Omega on the benchmark | | done |
-| Benchmark (S9) | tuning 34.3, held-out 18.0 vs SceneDiff 32.0, fusion 33.0 (5 pairs, too few) | 30-pair held-out test (~$6.5) when wanted | user |
+| Benchmark (S9, S17) | with VLM rescoring: tuning 38.1, held-out 23.1 (typed 21.4) vs SceneDiff 32.0 (typed 15.8); 5 pairs, too few | smaller held-out sample later (user: keep costs low) | user |
 | Own rooms (S9e, S11) | pair01 5 of 6 (SceneDiff 3), pair02 4 of 4 + boot unobserved (SceneDiff 3) | | done |
 | Robot maps (`grid2d`, `level`) | **works**: ROS map_server before/after maps, change layer, look mask; boot corner flagged | | done |
 | Suggested viewpoints (`viewpoints`) | **works**: 2.5D line of sight, shared stops; pair02 boot corner seen 99% from one stop, pair01 nothing to check | | done |
-| False alarms (walls, edges, shadow) | open, priority (D14). S14 conservative carving: tuning 35.4 with 24% fewer objects, held-out 17.2 < 18.0, not adopted | score pair01 / pair02 per detection, then filters | Claude |
+| False alarms (walls, edges, shadow) | VLM before/after check adopted as score (D15). Confident list: pair01 6, pair02 6 false alarms (from 46 / 33), all real changes kept (fp+slant). Size filter and hard VLM filter rejected (S15, S16) | carving choice for own rooms; moved-pair label agreement | Claude |
+| Labels (D13) | Qwen2.5-VL names each change (printer, white shoe, hat, suitcase); some wrong ('floor' for the moved suitcase) | label from the object's own view only; label agreement for moved | Claude |
 | Isaac demo | frozen (D14): demo.mp4 exists, no more work | | done |
 | Isaac diff-drive demo | not started (S3: laptop renders 9.4 fps) | next | Claude |
 | README + design note | not started | last day | Claude |

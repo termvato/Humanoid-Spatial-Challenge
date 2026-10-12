@@ -78,3 +78,9 @@ Evidence: docs/spikes.md S5 + S9.
 - The deliverable's demo is the two phone videos and what the pipeline finds in them. The Isaac robot demo (tools/demo.py, isaac/) stays as it is: no more work on it.
 - Isaac is not the bench for false alarms either: its Simple_Room table renders view-dependently (S14), so its false alarms partly measure the asset.
 - Next: cut false alarms on pair01 / pair02, scored per detection against the user's ground truth, with no loss on the benchmark tuning AP.
+
+## D15. VLM before/after check as a confidence score (2026-10-13, by the S17 rule)
+- Each detection is shown to Qwen2.5-VL-7B (Modal) next to the same 3D spot seen from the closest camera in the other video: "is an object in one image missing from the other?". "No" multiplies the score by 0.1.
+- Evidence: S17 tuning 34.3 -> 38.1, held-out 18.0 -> 23.1, typed 12.6 -> 21.4. As a hard filter (S16) it lost real changes.
+- The change list keeps every detection; "confident": false ones are listed last. The same VLM names each change (labels, D13).
+- Open: which carving for own rooms. fp+slant keeps the blanket in pair01's confident list, current carving does not; benchmark slightly prefers current. Not decided on 2 rooms.

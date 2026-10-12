@@ -4,8 +4,9 @@ Reads <result>/crops/<change id>_<blob id>_<k>.jpg (written by tools/analyse.py)
 blob, and writes the labels into changes.json ("label"; a moved change gets the label of its
 "was" view, and both answers are kept) plus labels.json with the raw answers. A blob the VLM
 calls "none" gets label null and "object": false. Each blob is also shown next to the same 3D spot seen
-from the closest camera in the other video and judged "changed" or "same" ("changed" per blob;
-false-alarm signals, not filters yet).
+from the closest camera in the other video and judged changed (yes / no, "changed" per blob). A change
+the VLM judges unchanged on every blob is marked "confident": false: listed last, not deleted
+(S17: as a score it raised benchmark AP; as a filter it lost real changes, S16).
 
 Usage: uv run python tools/label.py outputs/fa/pair02_base
 """
@@ -59,6 +60,7 @@ def main() -> None:
         c["object"] = any(g["label"] for g in got)
         c["answers"] = [g["answer"] for g in got]
         c["changed"] = [g.get("changed") for g in got]
+        c["confident"] = not (c["changed"] and all(v is False for v in c["changed"]))  # S17: "no" ranks low
     (args.result / "changes.json").write_text(json.dumps(chs, indent=2))
     (args.result / "labels.json").write_text(json.dumps(
         [{"change": k[0], "blob": k[1], **v} for k, v in per_blob.items()], indent=2))

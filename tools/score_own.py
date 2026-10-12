@@ -36,14 +36,14 @@ def main() -> None:
     ap.add_argument("results", type=Path, nargs="+")
     ap.add_argument("--gt", type=Path, required=True)
     ap.add_argument("--radius", type=float, default=0.3, help="metres")
-    ap.add_argument("--vlm-filter", action="store_true",
-                    help="drop changes whose blobs the VLM all judged 'same' (needs tools/label.py; S16)")
+    ap.add_argument("--confident", action="store_true",
+                    help="score only changes tools/label.py marks confident (VLM did not judge all blobs unchanged)")
     args = ap.parse_args()
     gt = json.loads(args.gt.read_text())
     for r in args.results:
         chs = json.loads((r / "changes.json").read_text())
-        if args.vlm_filter:
-            chs = [c for c in chs if not (c.get("changed") and all(v is False for v in c["changed"]))]
+        if args.confident:
+            chs = [c for c in chs if c.get("confident", True)]
         s = score(chs, gt, args.radius)
         print(f"{r}: found {s['found']}/{s['changes']} (kind ok {s['kind_ok']}), "
               f"{s['detections']} detections, {s['false_alarms']} false alarms, missed {s['missed']}")
