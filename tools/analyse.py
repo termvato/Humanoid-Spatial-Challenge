@@ -9,6 +9,7 @@ Usage: uv run --group gpu python tools/analyse.py outputs/recon/pi3_pair02.npz -
 Writes:
   changes.json     added / removed / moved, map-frame boxes, moved distance
   changes.jpg      one picture per change (red where it was, green where it is)
+  crops/           per change and blob, up to 3 outlined crops for the labeller (tools/label.py)
   before|after.{pgm,yaml}, look_mask.{pgm,yaml}   ROS map_server maps
   viewpoints.json  where to stand to look at each unobserved region (x, y, yaw)
   map.png          after map with changes and viewpoints
@@ -24,7 +25,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from roomdiff.changemap import collect_views, moved_pairs
+from roomdiff.changemap import collect_views, drop_small, moved_pairs
 from roomdiff.grid2d import (
     BLOCKED,
     FREED,
@@ -36,6 +37,7 @@ from roomdiff.grid2d import (
     save_change_mask,
     save_ros,
 )
+from roomdiff.label import best_views, crop
 from roomdiff.pipeline import level, run, run_lidar
 from roomdiff.report import Change, changes, to_json
 from roomdiff.viewpoints import Viewpoint, drop_unviewable, suggest
@@ -98,6 +100,7 @@ def main() -> None:
     ap.add_argument("--max-incidence", type=float, default=0.0, help="no free evidence beyond this angle (0 = off)")
     ap.add_argument("--slant", action="store_true", help="free margin measured along the surface normal")
     ap.add_argument("--footprint", action="store_true", help="free only if the whole voxel is seen past")
+    ap.add_argument("--min-extent", type=float, default=0.0, help="drop blobs whose largest side is under this many voxels")
     ap.add_argument("--match", type=float, default=0.5, help="moved matching: min DINOv2 cosine (0 = off)")
     ap.add_argument("--res", type=float, default=0.05, help="map cell, metres")
     ap.add_argument("--band", type=float, nargs=2, default=(0.10, 1.80), help="robot height band, metres")
@@ -118,6 +121,8 @@ def main() -> None:
 
         refine = SamRefiner()
     views = collect_views(cm, F, resample=1, refine=refine)  # every frame we have
+    if args.min_extent:
+        views = drop_small(views, cm, args.min_extent)
     partner = {}
     if colour and args.match > 0:
         from roomdiff.objects import DinoDescriptor
@@ -135,6 +140,12 @@ def main() -> None:
         tiles = change_tiles(chs, views, F.rgb, {b.id: b.kind for b in cm.blobs})
         tiles += [np.zeros_like(tiles[0])] * (-len(tiles) % 6)
         cv2.imwrite(str(args.out / "changes.jpg"), np.vstack([np.hstack(tiles[j:j + 6]) for j in range(0, len(tiles), 6)]))
+        (args.out / "crops").mkdir(exist_ok=True)
+        for i, c in enumerate(chs):
+            for bid in c.blobs:
+                for k, f in enumerate(best_views(views[bid])):
+                    cv2.imwrite(str(args.out / "crops" / f"{i}_{bid}_{k}.jpg"),
+                                cv2.cvtColor(crop(F.rgb[f], views[bid][f]), cv2.COLOR_RGB2BGR))
     save_ros(maps.before, args.out / "before")
     save_ros(maps.after, args.out / "after")
     save_change_mask(maps.change, args.out / "look_mask", LOOK)

@@ -16,7 +16,7 @@ import json
 import pickle
 from pathlib import Path
 
-from roomdiff.changemap import collect_views, export
+from roomdiff.changemap import collect_views, drop_small, export
 from roomdiff.objects import DinoDescriptor, SamRefiner
 from roomdiff.pipeline import run
 
@@ -35,6 +35,7 @@ def main() -> None:
     ap.add_argument("--max-incidence", type=float, default=0.0, help="no free evidence beyond this angle (0 = off)")
     ap.add_argument("--slant", action="store_true", help="free margin measured along the surface normal")
     ap.add_argument("--footprint", action="store_true", help="free only if the whole voxel is seen past")
+    ap.add_argument("--min-extent", type=float, default=0.0, help="drop blobs whose largest side is under this many voxels")
     ap.add_argument("--recon-dir", type=Path, default=Path("outputs/recon"))
     ap.add_argument("--out", type=Path, required=True)
     args = ap.parse_args()
@@ -58,6 +59,8 @@ def main() -> None:
             views = collect_views(pair.cm, pair.frames, refine=refine)
             cache.parent.mkdir(parents=True, exist_ok=True)
             cache.write_bytes(pickle.dumps(views))
+        if args.min_extent:
+            views = drop_small(views, pair.cm, args.min_extent)
         pred = export(pair.cm, pair.frames, views, match=match, descriptor=descriptor)
         d = args.out / "pred" / scene
         d.mkdir(parents=True, exist_ok=True)

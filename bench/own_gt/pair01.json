@@ -1,0 +1,9 @@
+{
+  "_note": "Map-frame positions (metres, tools/analyse.py level frame, phone at 1.5 m) of the user's ground truth (data/raw/pair01/ground_truth.json), read off the detections the user's photos confirm (2026-10-12). The pen was never detected, so it has no position and always counts as missed.",
+  "suitcase": {"change": "moved", "visit1": {"pos": [-1.42, 0.21]}, "visit2": {"pos": [-1.70, 1.06]}},
+  "blanket": {"change": "removed", "visit1": {"pos": [0.29, 1.40]}, "visit2": null},
+  "pouch": {"change": "added", "visit1": null, "visit2": {"pos": [1.85, 1.52]}},
+  "hat": {"change": "removed", "visit1": {"pos": [-1.47, -0.40]}, "visit2": null},
+  "blue tool": {"change": "moved", "visit1": {"pos": [-0.27, -1.43]}, "visit2": {"pos": [-0.62, -1.49]}},
+  "pen": {"change": "moved", "visit1": null, "visit2": null}
+}

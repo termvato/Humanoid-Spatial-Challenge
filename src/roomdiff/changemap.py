@@ -109,6 +109,12 @@ def build(before: Frames, after: Frames, voxel: float, tau: float | None = None,
     return ChangeMap(grid, lab, sb, sa, blobs, tau)
 
 
+def drop_small(views: dict, cm: ChangeMap, min_extent: float) -> dict:
+    """Views without blobs whose largest box side is under `min_extent` voxels (scale-free, like the voxel)."""
+    small = {b.id for b in cm.blobs if b.size.max() < min_extent * cm.grid.size}
+    return {k: v for k, v in views.items() if k not in small}
+
+
 def blob_mask(frames: Frames, i: int, centres: np.ndarray, voxel: float, tau: float) -> np.ndarray:
     """2D mask of voxel centres in frame i, keeping only voxels not hidden behind observed depth."""
     h, w = frames.depth[i].shape

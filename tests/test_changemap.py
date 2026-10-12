@@ -3,7 +3,7 @@
 import numpy as np
 from pycocotools import mask as rle
 
-from roomdiff.changemap import blob_mask, build, to_scenediff
+from roomdiff.changemap import blob_mask, build, drop_small, to_scenediff
 from roomdiff.frames import Frames, depth_edges
 
 H, W = 60, 80
@@ -90,3 +90,12 @@ def test_incidence_cos_head_on_and_slanted():
     floor = np.where(v > 55, 100 * 1.0 / np.maximum(v - 50, 1e-6), 0.0)
     c = incidence_cos(floor, K)
     assert c[60, 50] < c[95, 50] < 1.0  # farther floor (nearer the horizon) is seen more obliquely
+
+
+def test_drop_small_by_extent_in_voxels():
+    cm = build(_frames(True, 1), _frames(False, 2), voxel=0.1, min_voxels=5)
+    b = next(b for b in cm.blobs if b.kind == "removed")
+    views = {b.id: {0: None}}
+    side = b.size.max() / cm.grid.size  # largest side in voxels
+    assert drop_small(views, cm, side - 0.5) == views
+    assert drop_small(views, cm, side + 0.5) == {}
