@@ -28,6 +28,7 @@ Each spike has a pass/fail rule written BEFORE running it, so the result decides
 | S8 | Geometric veto of SceneDiff false alarms | folded into S9 | Became the fusion experiment |
 | S9a | Does the 3D map work from plain video? | PASS | pi3 metric map finds the suitcase with 0 false alarms |
 | S9b | 3D-first vs SceneDiff on the benchmark | middle band | Held-out 18.0 vs SceneDiff 32.0; fusion 33.0. Rule says: 3D core plus SceneDiff as a second channel. 5 pairs too few to rank |
+| S10 | Was Pi3X compared fairly? | pi3 confirmed | Fair confidence cut makes Pi3X worse; full pipeline 28.1 vs pi3 34.3 |
 | S9e | Full 3D pipeline on our room, plain video | strong result | 5 of 6 changes vs SceneDiff's 3. False alarms on walls above the wardrobe |
 
 Component choices inside the 3D pipeline (tuning pairs, each kept only if it raised AP): finer voxels (median depth/80: 3.5 -> 15.3), robust ICP between videos (+2.6), SAM object outlines (+7.6 with ICP), DINOv2 moved matching (25.5 -> 34.3). Rejected: colour-histogram matching, depth-scaled tolerance, smart keyframes.
@@ -189,3 +190,10 @@ Same frames for every model (every 10th frame, both videos in one call), same lo
 - Held-out (5 S1 pairs, frozen): 3D-first with DINO matching 18.0 AP, 12.6 typed (SceneDiff 32.0 / 15.8). Fusion (rescore + add) 33.0 / 13.0: level with SceneDiff. Chart: outputs/s9/s9_results.png.
 - **pair01 (own room, plain video, pi3, ICP, SAM; voxel median/80 as tuned on the benchmark):** top 12 detections hold suitcase removed + added, blanket removed, pouch added, hat removed (on the wardrobe), blue tool's old spot (removed). That is 5 of 6 changes found (pen missed; tool only as removed) vs SceneDiff's 3 of 6. Remaining false alarms are wall / cornice patches above the wardrobe and small fragments. outputs/s9/pair01_d80/objects.jpg (also /40: same changes minus the tool).
 - Cost of the night on Modal: roughly $9 (pi3 recon 21 pairs, 4 models x 16 runs, SceneDiff on 15 pairs, evaluations).
+
+### S10: pi3 confirmed, Pi3X gap is real (2026-10-12)
+- Pi3X confidence is calibrated differently (an absolute 0.1 cut keeps ~100% of its pixels vs 82-95% for pi3), so we tested a share-of-pixels cut (`frames.from_recon_npz(conf_drop=...)`).
+- Tuning pairs, voxel median/60 and /80, geometry + ICP (obj/sc AP): drop 10 / 20 / 30% -> /60: 5.5 / 4.2 / 7.0, /80: 7.3 / 7.1 / 4.2. Absolute 0.1 cut with ICP: **12.6** (11.4 without ICP). The share cut hurts Pi3X: its low-confidence pixels are still useful. The original comparison was not unfair against it.
+- Full pipeline on the best Pi3X setting (/80, cut 0.1, ICP, SAM, DINOv2 matching 0.5): **28.1 AP, 20.5 typed**, obj/im 37.7, px IoU 0.58. pi3, same pipeline: 34.3 / 23.6 / 44.0 / 0.59.
+- Rule: < 29.3 -> **pi3 confirmed, gap is real.** Pi3X stays a scale source only (near-metric on pair01).
+- Note: SAM and matching narrow the gap (geometry 12.6 vs 17.9, full 28.1 vs 34.3), so object-level steps matter more than the model.
