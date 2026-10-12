@@ -73,3 +73,8 @@ Evidence: docs/spikes.md S5 + S9.
 - Semantic labels are also a minimum requirement and are missing: every change needs a name.
 - User idea: a "put the room back" plan (move X from B back to A, return Y, take away Z), shown in the Isaac demo.
 - D12 still holds for the robot maps: blocked / free cells do not depend on the change type.
+
+## D14. Isaac demo frozen; focus on false alarms in real video (2026-10-12, decided by user)
+- The deliverable's demo is the two phone videos and what the pipeline finds in them. The Isaac robot demo (tools/demo.py, isaac/) stays as it is: no more work on it.
+- Isaac is not the bench for false alarms either: its Simple_Room table renders view-dependently (S14), so its false alarms partly measure the asset.
+- Next: cut false alarms on pair01 / pair02, scored per detection against the user's ground truth, with no loss on the benchmark tuning AP.
