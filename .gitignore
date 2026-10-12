@@ -10,8 +10,7 @@ __pycache__/
 .ruff_cache/
 
 # Data and outputs (large; published separately)
-data/raw/
-data/synthetic/
+data/
 outputs/
 *.rrd
 third_party/

@@ -34,6 +34,8 @@ Each spike has a pass/fail rule written BEFORE running it, so the result decides
 | S12 | Does VGGT-Omega beat pi3? | pi3 stays | Best depth on pair01 (2.0%), but benchmark 13.0 vs pi3 17.9 at the geometry stage |
 | S9e | Full 3D pipeline on our room, plain video | strong result | 5 of 6 changes vs SceneDiff's 3. False alarms on walls above the wardrobe |
 
+Code tidy (2026-10-12): rejected options removed from the code (git history keeps them); one pipeline for video and LiDAR (`roomdiff.pipeline`). Re-running the final settings reproduced the tuning result exactly (34.33 / 23.56) and S5 pi3 (ATE 4.2 cm, AbsRel 0.032). Tool names in older entries below may no longer exist.
+
 Component choices inside the 3D pipeline (tuning pairs, each kept only if it raised AP): finer voxels (median depth/80: 3.5 -> 15.3), robust ICP between videos (+2.6), SAM object outlines (+7.6 with ICP), DINOv2 moved matching (25.5 -> 34.3). Rejected: colour-histogram matching, depth-scaled tolerance, smart keyframes.
 
 ## Results

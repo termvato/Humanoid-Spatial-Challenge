@@ -1,15 +1,20 @@
-"""Spike S1: run the SceneDiff baseline on Modal.
+"""SceneDiff and pi3 on Modal: the baseline, our reconstructions, and the official evaluator.
 
-Stages (each a Modal function, results persisted in the `scenediff` volume):
-  download   CPU   fetch + unzip the benchmark (~12 GB) into the volume, once
-  predict    GPU   run scripts/predict_multiview.py on a subset of pairs
-  evaluate   CPU   run scripts/evaluate_multiview.py, write metrics to the volume
+Functions (results persisted in the `scenediff` volume):
+  download       CPU  fetch + unzip the benchmark (~12 GB) into the volume, once
+  fetch_weights  CPU  DINOv3 weights for SceneDiff, once
+  predict        GPU  SceneDiff (default config) on benchmark pairs
+  predict_own    GPU  SceneDiff on one of our pairs in /vol/own/<pair>
+  reconstruct    GPU  pi3 on both videos jointly -> /vol/outputs/recon/<name>.npz (our pipeline's input)
+  evaluate       CPU  official evaluator on predictions in /vol/outputs/<tag>/pred
 
 Usage:
   uv run modal run infra/modal_scenediff.py::data_app.download
   uv run modal run infra/modal_scenediff.py::data_app.fetch_weights   # once; links expire
-  uv run modal run infra/modal_scenediff.py::spike --n 5
-  uv run modal volume get scenediff outputs/s1 outputs/
+  uv run modal run infra/modal_scenediff.py::baseline --scenes a,b --tag sd_run
+  uv run modal run infra/modal_scenediff.py::recon --scenes a,b --own pair02
+  uv run modal run infra/modal_scenediff.py::own --pair pair02
+  uv run modal run infra/modal_scenediff.py::evalpred --tag run --scenes a,b
 
 DINOv3 links are signed and personal: they live in ~/.config/spatial-project/dinov3.env
 (outside the repo) and are only used by fetch_weights.
@@ -156,16 +161,6 @@ def evaluate(scenes: list[str], tag: str) -> str:
     return "\n".join(f.read_text() for f in sorted(out.glob("metrics*.txt")))
 
 
-@data_app.function(volumes={"/vol": vol}, cpu=2)
-def smoke() -> None:
-    """Import everything SceneDiff needs, on CPU, before paying for a GPU."""
-    subprocess.run(
-        ["python", "-c", ("import open3d, torch_scatter, segment_anything_ls; "
-         "import sys; sys.path.insert(0, '.'); from modules import SceneDiff; print('imports ok')")],
-        cwd=REPO, check=True,
-    )
-
-
 @app.function(volumes={"/vol": vol})
 def list_val_varied() -> list[str]:
     return json.loads((BENCH / "splits" / "val_split.json").read_text())["varied"]
@@ -292,14 +287,6 @@ def evalpred(tag: str, scenes: str) -> None:
 @app.local_entrypoint()
 def own(pair: str = "pair01", resample: int = 90) -> None:
     print(predict_own.remote(pair, resample))
-
-
-@app.local_entrypoint()
-def spike(n: int = 5, tag: str = "s1", start: int = 0) -> None:
-    scenes = list_val_varied.remote()[start:start + n]
-    print("scenes:", scenes)
-    predict.remote(scenes, tag)
-    print(evaluate.remote(scenes, tag))
 
 
 @app.local_entrypoint()

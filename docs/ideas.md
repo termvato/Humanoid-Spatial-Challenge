@@ -1,6 +1,7 @@
 # Ideas under discussion (not decided)
 
 ## I1. Isaac Sim procedural room pairs (proposed by user, 2026-10-11)
+- Status 2026-10-12: parked. The D11 pipeline is training-free and the real SceneDiff labels were enough to tune it. Isaac stays as the robot demo.
 - Auto-generate rooms, apply known move/add/remove edits, render two camera trajectories per pair. Exact ground truth.
 - Uses: (a) benchmark with precision/recall at scale, (b) training data, (c) generalisation measurement, (d) robot nav demo in the same env.
 - Curriculum learning suggested.
@@ -8,6 +9,7 @@
 - Open question to user: what exactly would the model learn (input, output)?
 
 ## I2. Sim+real co-training (user, 2026-10-11)
+- Status 2026-10-12: parked with I1 (nothing is trained).
 - Evidence: Maddukuri et al., RSS 2025, arXiv 2503.24361: sim data improves real manipulation by 38% on average; best sim share ~99% on CupPnP, extreme shares (99.9%) hurt. More sim data helps. RoboMIND 2.0 (arXiv 2512.24653): 1:5 real:sim beat 1:1 on some tasks.
 - Caveat: those are manipulation policies, not change detection. Transfer of the finding is a hypothesis to test, not a given.
 - Requirement: several labelled real pairs, split train/test by room. The demo videos must be in the real TEST split.
@@ -15,6 +17,7 @@
 - User agreed: use state-of-the-art pretrained models, no reinventing.
 
 ## I3. 3RScan as backup source of real 3D ground truth (2026-10-11)
+- Status 2026-10-12: not needed so far; still the option if we want a 3D-localisation test set.
 - 1,482 RGB-D rescans of 478 indoor scenes; per-object rigid transforms for changed objects, removed lists, consistent instance IDs, camera poses.
 - Access GRANTED 2026-10-11. Official download script: gist WaldJohannaU/55f5e35992ea91157b789b15eac4d432 (copy in third_party/3rscan_dl/). Licence CC BY-NC-SA 4.0 (derived data must share alike). Full release ~94 GB; per-scan download possible with --id. Server redirects http -> https.
 - Metadata (data/raw/3rscan/3RScan.json, 3 MB): 478 reference scenes, 1,004 rescans (982 with >= 1 rigid change), 3,323 rigid object moves with 3D transforms, 542 removed, 558 nonrigid. Splits: 385 train / 47 val / 46 test scenes.

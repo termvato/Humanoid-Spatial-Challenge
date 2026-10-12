@@ -38,53 +38,51 @@ flowchart LR
 |---|---|---|---|---|---|
 | SceneDiff benchmark | 350 pairs (100 val / 250 test) | 2D masks + change type | MIT | Modal volume `scenediff:/scenediff_benchmark` | baseline + headline test |
 | 3RScan | 1,004 rescans, 3,323 3D moves | 3D transforms, removed | CC BY-NC-SA 4.0 | metadata `data/raw/3rscan/3RScan.json`; scans not downloaded | candidate real 3D training data |
-| Own iPhone pairs | 0 so far (target 6-10) | own notes + ARKit + LiDAR | ours | `data/raw/pairNN/` | demo + held-out real test |
+| Own iPhone pairs | 2 (pair01 bedroom, pair02 corridor with mirror) | own notes + photos + ARKit + LiDAR | ours | `data/raw/pairNN/` | demo + real test |
 | Isaac Sim synthetic | 0 (renderer proven, S3) | exact 3D | ours | `spikes/s3_isaac_render.py` | optional; robot demo env |
 
 ## Models and weights
 
 | Model | Use | Access | Where |
 |---|---|---|---|
-| DINOv3 ViT-H+/16, L/16, B/16 | appearance features | granted; links expire 2026-10-13 | Modal volume `scenediff:/weights` |
-| SAM ViT-H (v1) | SceneDiff masks | open | baked into Modal image |
-| SAM 3 | our masks (S4) | granted (HF) | HF cache when used |
-| pi3 | SceneDiff geometry | open (non-commercial) | HF cache volume `hf-cache` |
+| pi3 | our reconstruction (D11) and SceneDiff's | open (non-commercial) | Modal volume `hf-cache` |
+| SAM ViT-H (v1) | our object outlines (laptop) and SceneDiff's masks | open | `~/.cache/roomdiff/sam_vit_h.pth`, Modal image |
+| DINOv2 ViT-S/14 | our moved matching | open | torch hub cache |
+| DINOv3 ViT-H+/16 | SceneDiff features | granted; links expire 2026-10-13 | Modal volume `scenediff:/weights` |
+| Pi3X, VGGT, VGGT-Omega, DA3, MapAnything | model comparison only (S5, S10, S12) | VGGT-Omega gated (Modal secret `huggingface`) | Modal volume `hf-cache` |
 
 ## Documents
 
 | Doc | What it holds |
 |---|---|
 | [challenge.md](challenge.md) | the brief, verbatim |
-| [decisions.md](decisions.md) | D1-D8, each with reason; append-only |
-| [spikes.md](spikes.md) | S1-S5 with pre-written rules and results |
-| [ideas.md](ideas.md) | I1 Isaac pairs, I2 co-training, I3 3RScan |
-| [research.md](research.md) | first-pass notes on SceneDiff and models |
-| [deep-research.md](deep-research.md) | full state-of-the-art report with ranked choices |
-| `../research_notes/` | raw notes behind the deep research |
+| [decisions.md](decisions.md) | D1-D12, each with reason; append-only |
+| [spikes.md](spikes.md) | S1-S12 with pre-written rules and results; summary table at the top |
+| [ideas.md](ideas.md) | ideas not built (Isaac pairs, co-training, 3RScan, mirrors) |
+| [deep-research.md](deep-research.md) | state-of-the-art report with ranked choices, plus later paper checks |
+| `research-notes/` | raw notes behind the deep research |
 
 ## Code
 
 | Path | What |
 |---|---|
-| `infra/modal_scenediff.py` | SceneDiff on Modal: download, fetch_weights, smoke, predict, evaluate |
-| `spikes/s3_isaac_render.py` | Isaac render benchmark |
-| `src/roomdiff/io/stray.py` | Stray Scanner loader (poses already OpenCV axes, depth, backprojection), 10 tests |
-| `src/roomdiff/align.py` | register two captures: gravity yaw sweep + FFT shift + 4-DoF ICP, 2 tests |
-| `src/roomdiff/visibility.py` | voxel carving -> removed / added / unchanged / unobserved, 6 tests |
-| `src/roomdiff/keyframes.py` | sharpness, finger mask, window and coverage keyframe selection, 9 tests |
-| `tools/visibility_map.py` | S7 map on a pair: result.json, labels.npz, bev.png, blobs.jpg |
-| `tools/make_keyframe_pair.py`, `tools/filter_occluded.py` | S6 keyframe pair and finger filter |
+| `src/roomdiff/pipeline.py` | the pipeline on one pair: `run` (plain video recon) or `run_lidar` (Stray LiDAR), one change map |
 | `src/roomdiff/frames.py` | one posed-depth container for LiDAR and every model |
-| `src/roomdiff/changemap.py` | 3D-first change map (sparse carving), blob -> 2D masks, SceneDiff export, moved matching |
-| `src/roomdiff/objects.py` | SAM object layer, colour and DINOv2 descriptors, moved matcher |
+| `src/roomdiff/align.py` | gravity-aware 4-DoF registration of two LiDAR captures; robust ICP between videos |
+| `src/roomdiff/visibility.py` | voxel carving: occupied / free / unknown per visit, compare, components |
+| `src/roomdiff/changemap.py` | sparse 3D change map, blob -> 2D masks, SceneDiff export with moved merging |
+| `src/roomdiff/objects.py` | SAM object outlines, DINOv2 descriptor, moved matcher |
+| `src/roomdiff/level.py` | floor and up in a reconstruction, scale from phone height |
+| `src/roomdiff/grid2d.py` | robot maps: ROS map_server occupancy, change layer, look mask |
 | `src/roomdiff/metrics.py` | Umeyama Sim3, ATE, depth AbsRel |
-| `infra/modal_models.py` | Pi3X, VGGT, DA3, MapAnything on Modal, same frames and format |
-| `tools/score_recon.py` | S5 scorer vs ARKit + LiDAR |
-| `tools/bench_predict.py`, `tools/s9_sweep.sh`, `tools/fuse.py`, `tools/plot_s9.py` | benchmark export, sweeps with official evaluator, fusion, chart |
-| `tools/run_pair.py` | full pipeline on one pair with pictures |
+| `src/roomdiff/io/stray.py` | Stray Scanner loader (poses already OpenCV axes) |
+| `tools/run_pair.py` | pipeline on one recon with a picture per change |
+| `tools/make_grid.py` | robot maps from a recon or a LiDAR pair |
+| `tools/bench_predict.py`, `tools/s9_sweep.sh` | benchmark predictions (final settings by default) + official evaluator |
+| `tools/fuse.py` | SceneDiff rescored by 3D support, plus 3D-only objects |
+| `tools/score_recon.py` | S5 model scorer vs ARKit + LiDAR |
+| `tools/show_sd.py`, `tools/show_pair.py`, `tools/plot_s9.py` | pictures: SceneDiff detections, benchmark pairs, results chart |
+| `infra/modal_scenediff.py` | Modal: benchmark, SceneDiff, pi3 reconstruction, evaluator |
+| `infra/modal_models.py` | Modal: Pi3X, VGGT, VGGT-Omega, DA3, MapAnything (model comparison) |
+| `spikes/s3_isaac_render.py` | Isaac render benchmark |
 | `third_party/` | SceneDiff clone, 3RScan download script (untracked) |
-
-## Open questions
-1. Does SceneDiff work on a white-walled home captured with a phone? (S2)
-2. Where does SceneDiff fail on val: missed changes, false alarms, or wrong change type? This decides what head A and B must fix. (S1 per-pair breakdown)
-3. Training data for the heads: SceneDiff val alone, plus 3RScan, or plus Isaac?

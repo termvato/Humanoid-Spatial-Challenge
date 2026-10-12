@@ -1,4 +1,6 @@
-"""S5: run alternative reconstruction models on exactly the frames pi3 saw, same output format.
+"""S5, S10, S12: alternative reconstruction models on exactly the frames pi3 saw, same output format.
+
+Kept so the model comparison can be reproduced; the pipeline itself uses pi3 (D11).
 
 Each model gets its own image (dependencies conflict). Every function reads the
 frames already extracted in the `scenediff` volume (every `stride`-th frame of
@@ -6,11 +8,12 @@ video{1,2}_frames, both videos jointly in one call) and writes
 /vol/outputs/recon/<model>/<name>.npz with depth, conf (in [0,1]), K (at depth
 resolution), T_wc (camera-to-world, OpenCV), rgb, video, src.
 
-Confidence: pi3/Pi3X give logits (sigmoid). DA3, VGGT and MapAnything give
+Confidence: pi3/Pi3X give logits (sigmoid). DA3, VGGT, VGGT-Omega and MapAnything give
 unbounded scores, so they are stored as the per-scene percentile rank; the shared
 loader then drops conf <= 0.1, i.e. each model's least confident 10% of pixels.
 
 Usage: uv run modal run infra/modal_models.py --model vggt --scenes a,b --own pair01
+Models: pi3x, vggt, vggt_omega (gated: Modal secret `huggingface`), da3, mapanything.
 """
 
 from pathlib import Path
