@@ -21,8 +21,8 @@
 - Versus SceneDiff val (100 pairs, 2D masks): ~10x more pairs, with real 3D motion ground truth. Main candidate if the heads need more or 3D-labelled real data.
 - Use if: we need real 3D localisation GT, or SceneDiff val is too small for the heads. Not phone video (Tango RGB-D), so a domain gap of its own.
 
-## Mirror and glass handling (later project, user 2026-10-12)
+## Mirror and glass handling (after the challenge, out of scope here; user 2026-10-12)
 Mirrors make every depth source (pi3, Pi3X, LiDAR) see a fake room behind the glass; reflections change with viewpoint, so they cause phantom and doubled changes.
 - Detect: a learned mirror segmenter on frames (mirror detection is an existing 2D task), or geometric cues: a planar frame (border) with "room" geometry behind a wall, LiDAR depth jumping past known walls, or points that are a reflection of real points across a plane.
 - Use: treat the mirror plane as a surface, drop voxels behind it, and mark the reflected region "unobserved / unreliable" rather than changed.
-- Test case: pair02 (corridor with a mirror), once recorded.
+- Not built for the submission. pair02 (corridor with a mirror) only shows what breaks without it.
