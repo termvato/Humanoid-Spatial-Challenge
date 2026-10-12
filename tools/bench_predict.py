@@ -64,6 +64,8 @@ def main() -> None:
     ap.add_argument("--footprint", action="store_true", help="free only if the whole voxel is seen past")
     ap.add_argument("--min-extent", type=float, default=0.0, help="drop blobs whose largest side is under this many voxels")
     ap.add_argument("--vlm-check", action="store_true", help="drop blobs a VLM judges unchanged (S16)")
+    ap.add_argument("--vlm-rescore", type=float, default=0.0,
+                    help="multiply the score of blobs a VLM judges unchanged by this, instead of dropping them (S17)")
     ap.add_argument("--recon-dir", type=Path, default=Path("outputs/recon"))
     ap.add_argument("--out", type=Path, required=True)
     args = ap.parse_args()
@@ -89,9 +91,14 @@ def main() -> None:
             cache.write_bytes(pickle.dumps(views))
         if args.min_extent:
             views = drop_small(views, pair.cm, args.min_extent)
-        if args.vlm_check:
+        if args.vlm_check or args.vlm_rescore:
             verdict = vlm_verdicts(pair, views, cache.with_suffix(".vlm.json"))
-            views = {k: v for k, v in views.items() if verdict.get(k) is not False}
+            if args.vlm_rescore:
+                for b in pair.cm.blobs:
+                    if verdict.get(b.id) is False:
+                        b.score *= args.vlm_rescore
+            else:
+                views = {k: v for k, v in views.items() if verdict.get(k) is not False}
         pred = export(pair.cm, pair.frames, views, match=match, descriptor=descriptor)
         d = args.out / "pred" / scene
         d.mkdir(parents=True, exist_ok=True)

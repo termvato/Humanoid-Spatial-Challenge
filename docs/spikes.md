@@ -18,6 +18,7 @@ Each spike has a pass/fail rule written BEFORE running it, so the result decides
 | S14 | Does conservative carving cut false alarms? A voxel counts as free only if the camera saw past the whole voxel (nearest depth over its projected footprint), optionally with the free margin along the surface normal (slant). Replaces S13's angle cut, which broke the moved pair in sim (kind 2/3) | Tuning pairs, full pipeline: fp, slant, fp+slant | Best variant adopted only if tuning obj/sc AP >= 34.3 (no loss); ties broken by fewer predicted objects. Then held-out 5 must stay >= 18.0. Otherwise pipeline unchanged | pennies + laptop SAM |
 | S15 | Does a minimum object size cut false alarms? (pair01: most of 46 false alarms are 5-10 cm fragments) | Drop blobs whose largest side is under 4 / 6 / 8 / 12 voxels (scale-free; 7 voxels ~ 12 cm on pair01), after SAM (cached masks). Current and fp+slant carving. Tuning pairs + own pairs (tools/score_own.py) | Adopt the largest threshold with tuning AP >= 33.3 (at most 1.0 below 34.3) AND no own-pair change lost; report false alarms cut. Held-out 5 must stay >= 17.0 | pennies |
 | S16 | Does a VLM before/after check cut false alarms? Each change's best crop next to the same 3D spot from the closest camera in the other video; Qwen2.5-VL-7B answers 'changed' or 'same' | Drop a change when every one of its blobs is judged 'same'. Own pairs (current and fp+slant carving), then tuning pairs | Adopt if own pairs lose no true change AND false alarms drop >= 30%; then tuning AP >= 33.3 and held-out >= 17.0. Otherwise keep the verdict as information only | ~$0.5 Modal |
+| S17 | Does the VLM verdict work as a score instead of a filter? (S16 filter halved objects but lost real ones) | Blobs the VLM answers 'no' keep their masks but their score (voxel count) is multiplied by 0.1 / 0.3. Current and fp+slant carving; cached verdicts | Adopt the best if tuning AP >= 34.3 (no loss); then held-out >= 18.0. The user-facing list is then cut by score, chosen on own pairs | pennies |
 
 ## Summary of all tests (2026-10-12)
 
@@ -38,6 +39,7 @@ Each spike has a pass/fail rule written BEFORE running it, so the result decides
 | S12 | Does VGGT-Omega beat pi3? | pi3 stays | Best depth on pair01 (2.0%), but benchmark 13.0 vs pi3 17.9 at the geometry stage |
 | S9e | Full 3D pipeline on our room, plain video | strong result | 5 of 6 changes vs SceneDiff's 3. False alarms on walls above the wardrobe |
 | S14 | Conservative carving (whole voxel seen past, normal margin) | not adopted | Tuning 35.4 with 24% fewer objects, but held-out 17.2 < 18.0. 5 pairs too few to tell; off by default |
+| S16 | VLM before/after check as a filter | not adopted | Own pairs: false alarms 46 -> 6 and 33 -> 6 with fp+slant, no change lost (dev data). Tuning AP 31.2 (objects 283 -> 136): it drops real benchmark changes |
 | S15 | Minimum object size | not adopted | Only 4 voxels keeps tuning AP (33.9); 6+ voxels cost 3+ AP. The benchmark is full of small objects; size cannot be the false-alarm filter |
 
 Code tidy (2026-10-12): rejected options removed from the code (git history keeps them); one pipeline for video and LiDAR (`roomdiff.pipeline`). Re-running the final settings reproduced the tuning result exactly (34.33 / 23.56) and S5 pi3 (ATE 4.2 cm, AbsRel 0.032). Tool names in older entries below may no longer exist.
@@ -262,3 +264,15 @@ Same frames for every model (every 10th frame, both videos in one call), same lo
 - The written prompt ("changed" or "same") failed on own pairs: it said "same" for the blanket, pouch, cap and printer, although the crops show them plainly present vs absent. A 7B VLM defaults to "same".
 - Prompt and crop iterated on own pairs, which are therefore development data now, not the test: a yes/no question ("is there an object inside the box in one image that is missing from the other?") said yes to every main real change with a crop, and to 36% of false alarms (26 of 72). Contour markers drowned small regions ("red pixelated shape"), so the marker is now a thin box around the region; the other-video search was widened (half the detections had no comparison view).
 - The rule's decision moves to the benchmark: tuning AP >= 33.3 and held-out >= 17.0 with the filter on.
+
+### S16: VLM before/after check as a filter, not adopted (2026-10-13)
+
+| | Tuning AP | typed | Objects | px IoU | pair01 found / false | pair02 found / false |
+|---|---|---|---|---|---|---|
+| Current | 34.3 | 23.6 | 283 | 0.59 | 5/6, 46 | 4/4, 33 |
+| + VLM filter | 31.2 | 26.3 | 136 | 0.37 | 4/6, 12 | 4/4, 9 |
+| fp+slant | 35.4 | 24.6 | 216 | 0.64 | 5/6, 30 | 4/4, 28 |
+| fp+slant + VLM filter | 28.8 | 20.8 | 124 | 0.36 | 5/6, 6 | 4/4, 6 |
+
+- Fails the rule (31.2 < 33.3). On the benchmark the filter removes real changes too (pixel IoU 0.59 -> 0.37). Own pairs were development data, so their strong result does not count as the test.
+- Verdicts cached per scene (outputs/s9/cache/*.vlm.json), so rescoring (S17) costs only the evaluator. Modal spend ~$0.5.
