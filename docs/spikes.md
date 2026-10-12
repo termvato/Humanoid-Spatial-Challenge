@@ -197,3 +197,20 @@ Same frames for every model (every 10th frame, both videos in one call), same lo
 - Full pipeline on the best Pi3X setting (/80, cut 0.1, ICP, SAM, DINOv2 matching 0.5): **28.1 AP, 20.5 typed**, obj/im 37.7, px IoU 0.58. pi3, same pipeline: 34.3 / 23.6 / 44.0 / 0.59.
 - Rule: < 29.3 -> **pi3 confirmed, gap is real.** Pi3X stays a scale source only (near-metric on pair01).
 - Note: SAM and matching narrow the gap (geometry 12.6 vs 17.9, full 28.1 vs 34.3), so object-level steps matter more than the model.
+
+### S11: pair02, corridor with a large mirror (2026-10-12, result only, no rule)
+- Ground truth (user): cap added, printer moved (removed + added), white shoe removed, black boot unobserved (in the before video only). Photos: data/raw/pair02/photos (`_a` = after, `_b` = before).
+- Plain video: pi3 jointly (376 frames, stride 10, peak 22 GB), robust ICP (fitness 0.90), voxel median/80 (1.1 cm), SAM. LiDAR: S7 map, 5 cm, registration fitness 0.68. SceneDiff: default, resample 90.
+
+| Change | 3D pipeline, plain video | LiDAR map | SceneDiff |
+|---|---|---|---|
+| cap, added | found (#4) | missed | found (P9) |
+| printer old spot | found (#3) | found (B0, B2) | found, typed moved (P2) |
+| printer new spot | found (#1) | found (B4) | found, typed moved (P2) |
+| white shoe, removed | found, small (#5) | missed | missed |
+| black boot, unobserved | **unobserved**: occupied in before, in view in 0 of 189 after frames | not checked | no notion of it |
+| false alarms (to confirm with user) | box (#0, #2), 6 small wall / door edges, bench (#11) | 2 from the mirror, floor patch, a door (B3, 150 L) | box (P1), bench (P8), ~8 walls / doors |
+
+- The mirror produced phantom changes in the LiDAR map (depth into the reflection), only edge noise in the plain-video map.
+- Plain video beat LiDAR on small objects here (1.1 cm vs 5 cm voxels).
+- Artifacts: outputs/s9/pair02_d80/ (objects.jpg, boot_before.jpg), outputs/s7_pair02/, outputs/sd/own/pair02/objects.jpg.

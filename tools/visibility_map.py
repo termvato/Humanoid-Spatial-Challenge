@@ -51,8 +51,9 @@ def carve(cap: StrayCapture, T: np.ndarray, centres: np.ndarray, stride: int, ta
     frees = np.zeros(len(centres), np.uint16)
     per_frame_hits: dict[int, np.ndarray] = {}
     for i in range(0, len(cap), stride):
-        h, f = observe(centres, cap.depth(i), cap.K_depth(i), T @ cap.T_wc[i], tau=tau,
-                       conf=cap.confidence(i), max_depth=max_depth)
+        d = cap.depth(i)
+        valid = (cap.confidence(i) >= 2) & (d > 0) & (d <= max_depth)
+        h, f = observe(centres, d, cap.K_depth(i), T @ cap.T_wc[i], tau=tau, valid=valid)
         hits += h
         frees += f
         per_frame_hits[i] = np.flatnonzero(h)
