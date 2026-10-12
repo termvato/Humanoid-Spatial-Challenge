@@ -27,7 +27,7 @@ from PIL import Image
 sys.path.insert(0, os.path.dirname(__file__))
 import scene
 
-CAMERA = ((4.1, -3.15, 2.9), (-0.6, 1.0, scene.FLOOR_Z))  # high corner, looking over the room
+CAMERA = ((0.0, -1.6, 3.3), (0.0, 0.6, scene.FLOOR_Z))  # under the ceiling, wide: the whole room in view
 
 
 def main() -> None:
@@ -36,7 +36,7 @@ def main() -> None:
         frames = json.load(f)["frames"]
     scene.load(app)
     robot = scene.add_robot(app)
-    cam = rep.create.camera(position=CAMERA[0], look_at=CAMERA[1], focal_length=14.0)
+    cam = rep.create.camera(position=CAMERA[0], look_at=CAMERA[1], focal_length=7.0)
     rgb = rep.AnnotatorRegistry.get_annotator("rgb")
     rgb.attach(rep.create.render_product(cam, (args.width, args.height)))
     last = None

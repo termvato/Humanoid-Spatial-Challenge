@@ -97,6 +97,13 @@ def add_robot(app):
     stage.DefinePrim("/World/Robot/asset").GetReferences().AddReference(get_assets_root_path() + ROBOT)
     for _ in range(20):
         app.update()
+    from pxr import UsdPhysics  # placed by hand: its physics would make it fall and tumble
+
+    for p in Usd.PrimRange(prim):
+        if p.HasAPI(UsdPhysics.RigidBodyAPI):
+            UsdPhysics.RigidBodyAPI(p).CreateRigidBodyEnabledAttr().Set(False)
+        if p.HasAPI(UsdPhysics.ArticulationRootAPI):
+            p.RemoveAPI(UsdPhysics.ArticulationRootAPI)
     return prim
 
 

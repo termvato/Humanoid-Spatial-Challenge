@@ -66,8 +66,14 @@ def plan(args) -> None:
 
     cur = to_xy(grid, nearest_drivable(ok, to_cell(grid, world_to_map(T, START_WORLD, FLOOR_Z))))
     yaw = 0.0
-    for _ in range(FPS * 2):
-        emit(cur, yaw, "Visit 2 is done. The map says some places were never re-checked.", "intro")
+    kinds = {k: sum(c["kind"] == k for c in changes) for k in ("moved", "removed", "added")}
+    intro = [f"Compared visit 1 and visit 2: {kinds['moved']} moved, {kinds['removed']} removed, {kinds['added']} added",
+             (f"Against ground truth: {score['found']} of {score['changed']} real changes found, "
+              f"{len(score['false_alarms'])} false alarms (small pieces near the table)"),
+             f"{len(vps)} places were seen in visit 1 but never in visit 2: the robot goes to look"]
+    for line in intro:
+        for _ in range(FPS * 3):
+            emit(cur, yaw, line, "intro")
     todo = list(vps)
     while todo:  # nearest viewpoint next
         v = min(todo, key=lambda v: np.hypot(v["pose"][0] - cur[0], v["pose"][1] - cur[1]))
@@ -76,7 +82,7 @@ def plan(args) -> None:
         if path is None:
             continue
         pts = [to_xy(grid, rc) for rc in path[::3]] + [tuple(v["pose"][:2])]
-        caption = f"Driving to look at an unobserved spot ({v['cells']} cells)"
+        caption = "Driving to a spot that visit 2 never saw"
         for a, b in pairwise(pts):
             heading = float(np.arctan2(b[1] - a[1], b[0] - a[0]))
             for y in _turn(yaw, heading):
@@ -112,7 +118,7 @@ def plan(args) -> None:
         if c["kind"] == "moved":
             src = np.array(props[name])
             dst = map_to_world(T, tuple(c["before"]["centre"]))[:2]
-            cap = f"Put back: moved {c['distance']:.1f} m -> return it to where it was"
+            cap = f"Put back: {name} moved {c['distance']:.1f} m -> return it to where it was"
             for k in range(FPS * 3):
                 t = (k + 1) / (FPS * 3)
                 for n in group:
@@ -122,13 +128,13 @@ def plan(args) -> None:
             for n in group:
                 props[n] = None
             for _ in range(FPS * 2):
-                emit(cur, yaw, "Put back: this was added -> take it away", "restore")
+                emit(cur, yaw, f"Put back: {name} was added -> take it away", "restore")
         else:
             dst = map_to_world(T, tuple(c["before"]["centre"]))[:2]
             for n in group:
                 props[n] = [float(v) for v in dst]
             for _ in range(FPS * 2):
-                emit(cur, yaw, "Put back: this was removed -> return it", "restore")
+                emit(cur, yaw, f"Put back: {name} was removed -> return it", "restore")
     for _ in range(FPS * 2):
         emit(cur, yaw, "Room restored to visit 1, from the detected changes", "end")
     (res / "demo_plan.json").write_text(json.dumps({"fps": FPS, "frames": frames}))
@@ -141,23 +147,24 @@ def video(args) -> None:
     res = args.result
     p = json.loads((res / "demo_plan.json").read_text())
     grid = load_ros(res / "after.yaml")
-    inset = cv2.imread(str(res / "map.png"))
+    panel = cv2.imread(str(res / "map.png"))
     files = sorted((res / "frames").glob("*.png"))
-    first = cv2.imread(str(files[0]))
-    H, W = first.shape[:2]
-    s = (H // 2) / inset.shape[0]
+    H, W = cv2.imread(str(files[0])).shape[:2]
+    s = H / panel.shape[0]
+    pw = round(panel.shape[1] * s) // 2 * 2
     tmp = res / "demo_raw.mp4"
-    wr = cv2.VideoWriter(str(tmp), cv2.VideoWriter_fourcc(*"mp4v"), p["fps"], (W, H))
+    wr = cv2.VideoWriter(str(tmp), cv2.VideoWriter_fourcc(*"mp4v"), p["fps"], (W + pw, H + 44))
     for f, fr in zip(files, p["frames"], strict=False):
-        img = cv2.imread(str(f))
-        m = inset.copy()
+        m = panel.copy()
         x, y = fr["robot_map"]
         c = int((x - grid.origin[0]) / grid.resolution * PX), int((grid.data.shape[0] - (y - grid.origin[1]) / grid.resolution) * PX)
         cv2.circle(m, c, 3 * PX, (0, 140, 255), -1)
-        m = cv2.resize(m, None, fx=s, fy=s)
-        img[8:8 + m.shape[0], W - 8 - m.shape[1]:W - 8] = m
-        cv2.rectangle(img, (0, H - 40), (W, H), (0, 0, 0), -1)
-        cv2.putText(img, fr["caption"], (12, H - 14), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (255, 255, 255), 1, cv2.LINE_AA)
+        img = np.zeros((H + 44, W + pw, 3), np.uint8)
+        img[:H, :W] = cv2.imread(str(f))
+        img[:H, W:] = cv2.resize(m, (pw, H))
+        cv2.putText(img, fr["caption"], (12, H + 29), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (255, 255, 255), 1, cv2.LINE_AA)
+        cv2.putText(img, "robot map: red new obstacle, green freed, orange unseen, blue viewpoint", (W + 8, H + 29),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.45, (200, 200, 200), 1, cv2.LINE_AA)
         wr.write(img)
     wr.release()
     out = res / "demo.mp4"
