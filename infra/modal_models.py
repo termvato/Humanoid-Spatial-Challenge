@@ -222,14 +222,13 @@ def vggt_omega(scene_dir: str, name: str, stride: int = 10, res: int = 512) -> s
     """VGGT-Omega-1B-512 (gated, CC BY-NC per the access request). Outputs at its own preprocessed size."""
     import numpy as np
     import torch
-    from huggingface_hub import snapshot_download
+    from huggingface_hub import hf_hub_download
     from vggt_omega.models import VGGTOmega
     from vggt_omega.utils.load_fn import load_and_preprocess_images
     from vggt_omega.utils.pose_enc import encoding_to_camera
 
     files, vid, src = _frames(scene_dir, stride)
-    root = Path(snapshot_download("facebook/VGGT-Omega", allow_patterns=["VGGT-Omega-1B-512/*"]))
-    ckpt = next((root / "VGGT-Omega-1B-512").glob("*.pt"))
+    ckpt = hf_hub_download("facebook/VGGT-Omega", "vggt_omega_1b_512.pt")
     model = VGGTOmega().to("cuda").eval()
     model.load_state_dict(torch.load(ckpt, map_location="cpu"))
     images = load_and_preprocess_images(files, image_resolution=res).to("cuda")

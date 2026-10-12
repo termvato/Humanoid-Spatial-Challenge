@@ -218,3 +218,7 @@ Same frames for every model (every 10th frame, both videos in one call), same lo
 - User check of the extra detections: box moved a little while taking the printer out (real, acceptable); #2 likely the user's shadow; bench clothes and the LiDAR door (B3) unchanged; boot was seen in the before video only (confirms unobserved).
 - Final count, pair02. 3D pipeline: 4 of 4 changes + boot unobserved, ~8 false alarms (shadow, bench, 6 small edges). LiDAR: printer only, 4 false alarms (2 mirror, floor, door). SceneDiff: 3 of 4, ~9 false alarms (bench, walls, doors).
 - New failure source: a shadow made a pi3 "added" blob, so the plain-video map is not fully lighting-immune (pi3 depth comes from pixels). The LiDAR map is.
+
+### S12: VGGT-Omega (2026-10-12, in progress)
+- Runner `infra/modal_models.py::vggt_omega` (checkpoint vggt_omega_1b_512.pt, gated, HF token in Modal secret `huggingface`). pair01: 243 frames at 592x448, peak 24.4 GB on A100-80GB.
+- (a) pair01 geometry, same scorer as S5: ATE **4.5 cm** (pi3 4.2, Pi3X 3.3), depth AbsRel at one Sim3 scale **0.020** (best of six; Pi3X 0.022, pi3 0.032), Sim3 scale 2.20 (not metric). Change map: suitcase both blobs; 0 false-alarm blobs metric, 5 scale-free (pi3 7, Pi3X 3).
