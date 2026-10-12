@@ -16,6 +16,7 @@ from roomdiff.align import Registration, refine_between_videos, register
 from roomdiff.changemap import ChangeMap, build, frame_points
 from roomdiff.frames import Frames, concat, from_recon_npz, from_stray
 from roomdiff.io.stray import load_stray
+from roomdiff.level import level_frame, scale_from_camera_height
 
 
 @dataclass
@@ -68,3 +69,12 @@ def run_lidar(pair_dir: str | Path, voxel: float = 0.05, stride: int = 5, min_vo
     after = after.transformed(reg.T)
     cm = build(before, after, voxel=voxel, min_voxels=min_voxels)
     return Pair(concat(before, after), cm, voxel, (reg.fitness, reg.fitness))
+
+
+def level(pair: Pair, metric: bool, scale: float = 0.0) -> tuple[np.ndarray, float]:
+    """World -> level transform (floor y = 0, +y up) and metres per unit: 1 for metric input,
+    `scale` if given, else from the phone-height assumption (level.scale_from_camera_height)."""
+    T = level_frame(points(pair.frames, step=8), pair.frames.T_wc)
+    if metric:
+        return T, 1.0
+    return T, scale or scale_from_camera_height(pair.frames.T_wc, T)

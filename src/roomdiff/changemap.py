@@ -156,6 +156,26 @@ def collect_views(cm: ChangeMap, frames: Frames, resample: int = 30, min_px: int
     return views
 
 
+def moved_pairs(cm: ChangeMap, frames: Frames, views: dict, descriptor, **match) -> dict[int, int]:
+    """Removed blob id -> added blob id for pairs that look like one object in a new place.
+
+    A blob's descriptor is the normalised mean of `descriptor(rgb, mask)` over its views;
+    `match` goes to `objects.match_moved` (min_sim, min_size_ratio). Needs rgb.
+    """
+    from roomdiff.objects import match_moved
+
+    if frames.rgb is None:
+        return {}
+    blobs = {b.id: b for b in cm.blobs}
+
+    def summary(bid):
+        d = np.mean([descriptor(frames.rgb[i], m) for i, m in views[bid].items()], axis=0)
+        return {"desc": d / (np.linalg.norm(d) + 1e-9), "voxels": len(blobs[bid].idx)}
+    removed = {k: summary(k) for k in views if blobs[k].kind == "removed"}
+    added = {k: summary(k) for k in views if blobs[k].kind == "added"}
+    return {r: a for r, a, _ in match_moved(removed, added, **match)}
+
+
 def export(cm: ChangeMap, frames: Frames, views: dict, resample: int = 30, match: dict | None = None,
            descriptor=None) -> dict:
     """SceneDiff-format objects from per-blob views, optionally merging matched removed + added as moved.
@@ -165,19 +185,9 @@ def export(cm: ChangeMap, frames: Frames, views: dict, resample: int = 30, match
     """
     from pycocotools import mask as rle
 
-    from roomdiff.objects import match_moved
-
     h, w = frames.depth.shape[1:]
     blobs = {b.id: b for b in cm.blobs}
-    partner: dict[int, int] = {}
-    if match is not None and frames.rgb is not None:
-        def summary(bid):
-            d = np.mean([descriptor(frames.rgb[i], m) for i, m in views[bid].items()], axis=0)
-            return {"desc": d / (np.linalg.norm(d) + 1e-9), "voxels": len(blobs[bid].idx)}
-        removed = {k: summary(k) for k in views if blobs[k].kind == "removed"}
-        added = {k: summary(k) for k in views if blobs[k].kind == "added"}
-        for r, a, _ in match_moved(removed, added, **match):
-            partner[r] = a
+    partner = {} if match is None else moved_pairs(cm, frames, views, descriptor, **match)
 
     def encode(m):
         enc = rle.encode(np.asfortranarray(m.astype(np.uint8)))

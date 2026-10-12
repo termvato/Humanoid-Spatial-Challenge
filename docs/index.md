@@ -11,7 +11,7 @@ Start here. Every other doc is linked from this page. Update the status board at
 | Model choice (S5, S10, S12) | **pi3** beats Pi3X, VGGT, DA3, MapAnything, VGGT-Omega on the benchmark | | done |
 | Benchmark (S9) | tuning 34.3, held-out 18.0 vs SceneDiff 32.0, fusion 33.0 (5 pairs, too few) | 30-pair held-out test (~$6.5) when wanted | user |
 | Own rooms (S9e, S11) | pair01 5 of 6 (SceneDiff 3), pair02 4 of 4 + boot unobserved (SceneDiff 3) | | done |
-| Robot maps (`grid2d`, `level`, `tools/make_grid.py`) | **works**: ROS map_server before/after maps, change layer, look mask; boot corner flagged | | done |
+| Robot maps (`grid2d`, `level`) | **works**: ROS map_server before/after maps, change layer, look mask; boot corner flagged | | done |
 | Suggested viewpoints (`viewpoints`) | **works**: 2.5D line of sight, shared stops; pair02 boot corner seen 99% from one stop, pair01 nothing to check | | done |
 | False alarms (walls, edges, shadow) | open: about as many as SceneDiff | size / views / wall-plane filter, tuned on benchmark | Claude |
 | Isaac diff-drive demo | not started (S3: laptop renders 9.4 fps) | next | Claude |
@@ -78,8 +78,9 @@ flowchart LR
 | `src/roomdiff/viewpoints.py` | where to stand to look at each "go look" region (2.5D line of sight) |
 | `src/roomdiff/metrics.py` | Umeyama Sim3, ATE, depth AbsRel |
 | `src/roomdiff/io/stray.py` | Stray Scanner loader (poses already OpenCV axes) |
-| `tools/run_pair.py` | pipeline on one recon with a picture per change |
-| `tools/make_grid.py` | robot maps + viewpoints from a recon or a LiDAR pair |
+| `tools/analyse.py` | **the one command**: change list, pictures, robot maps, viewpoints for a recon, sim or LiDAR pair |
+| `src/roomdiff/report.py` | 3D change list: added / removed / moved (from -> to, distance) in map metres |
+| `isaac/scene.py`, `isaac/record_visits.py` | simulated test room with known changes; two visits as exact posed RGB-D |
 | `tools/bench_predict.py`, `tools/s9_sweep.sh` | benchmark predictions (final settings by default) + official evaluator |
 | `tools/fuse.py` | SceneDiff rescored by 3D support, plus 3D-only objects |
 | `tools/score_recon.py` | S5 model scorer vs ARKit + LiDAR |
