@@ -37,6 +37,7 @@ class RobotMaps:
     before: Grid2D
     after: Grid2D
     change: Grid2D  # NONE / BLOCKED / FREED / LOOK
+    height: np.ndarray  # (rows, cols) float32: top of the tallest occupied voxel in the band, visit 2; 0 = none
 
 
 def _map_xy(cm: ChangeMap, flat: np.ndarray, T_level: np.ndarray, scale: float) -> tuple[np.ndarray, np.ndarray]:
@@ -91,7 +92,10 @@ def robot_maps(cm: ChangeMap, T_level: np.ndarray, scale: float = 1.0, res: floa
         mark(change, b.idx, BLOCKED if b.kind == "added" else FREED)
     after = visit(cm.after)
     change[(change == LOOK) & (after.data != UNKNOWN_CELL)] = NONE  # the column was seen again: nothing to look at
-    return RobotMaps(visit(cm.before), after, Grid2D(change, res, (float(lo[0]), float(lo[1]))))
+    height = np.zeros(shape, np.float32)
+    top = in_band & (cm.after[known] == OCC)
+    np.maximum.at(height, cells(xy[top]), (h[top] + cm.grid.size * scale / 2).astype(np.float32))
+    return RobotMaps(visit(cm.before), after, Grid2D(change, res, (float(lo[0]), float(lo[1]))), height)
 
 
 def save_ros(grid: Grid2D, stem: str | Path) -> Path:

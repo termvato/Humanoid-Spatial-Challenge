@@ -43,6 +43,8 @@ def test_robot_maps_occupancy_and_change():
     assert _cell(maps.before, 0.8, 0.5) == OCC_CELL  # the boot
     assert _cell(maps.after, 0.8, 0.5) == UNKNOWN_CELL
     assert _cell(maps.change, 0.8, 0.5) == LOOK
+    c = np.floor((np.array([0.3, -0.3]) - maps.after.origin) / 0.1).astype(int)
+    assert maps.height[c[1], c[0]] == np.float32(0.45)  # box voxels up to y = 0.4, top face at 0.45
 
 
 def test_save_ros_writes_map_server_files(tmp_path):
