@@ -54,7 +54,7 @@
 - D9 needs per-voxel visibility (unobserved, viewpoints, costmap), which is a 3D-first output.
 - Proposed: 3D-first core, SceneDiff's appearance cues demoted to a small-object bonus that geometry verifies. Pending S9: does plain-video depth (feed-forward model) give a usable map?
 
-## D11. Reconstruction model and pipeline shape (2026-10-12, PROPOSED, user to decide)
+## D11. Reconstruction model and pipeline shape (2026-10-12, DECIDED by user after S10)
 Evidence: docs/spikes.md S5 + S9.
 - Model: pi3 gives the best change detection on the benchmark at every setting; Pi3X gives the best geometry on pair01 (ATE 3.3 cm, depth 2.2%) and near-metric scale (1.016) but worse benchmark AP (11.4 vs 15.3, geometry only). VGGT and DA3 are far behind on change detection; MapAnything far behind on geometry (focal 22% off, possibly our integration).
   Proposal: pi3 for change detection; Pi3X only if metric scale is needed without the phone (else ARKit gives scale).
