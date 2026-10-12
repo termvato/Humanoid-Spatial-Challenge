@@ -31,7 +31,7 @@ import numpy as np
 import omni.replicator.core as rep
 
 sys.path.insert(0, os.path.dirname(__file__))
-import scene  # noqa: E402
+import scene
 
 CAM_Z = scene.FLOOR_Z + 1.0
 PITCH = np.radians(-15)
