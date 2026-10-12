@@ -29,6 +29,8 @@ def main() -> None:
     ap.add_argument("--div", type=float, default=25)
     ap.add_argument("--min-voxels", type=int, default=15)
     ap.add_argument("--min-conf", type=float, default=0.1)
+    ap.add_argument("--conf-drop", type=float, default=0.0, help="drop this fraction of least confident pixels "
+                                                                 "(replaces --min-conf when > 0)")
     ap.add_argument("--merge", type=int, default=0, help="join blobs within N voxels")
     ap.add_argument("--refine", choices=["none", "sam"], default="none")
     ap.add_argument("--match", type=float, default=0.0, help="moved matching: min colour similarity (0 = off)")
@@ -51,7 +53,7 @@ def main() -> None:
         descriptor = DinoDescriptor()
     summary = {}
     for scene in args.scenes.split(","):
-        F = from_recon_npz(args.recon_dir / f"{args.model}_{scene}.npz", min_conf=args.min_conf)
+        F = from_recon_npz(args.recon_dir / f"{args.model}_{scene}.npz", min_conf=args.min_conf, conf_drop=args.conf_drop)
         voxel = F.median_depth() / args.div
         before, after = F.of_video(1), F.of_video(2)
         icp = None
@@ -69,7 +71,8 @@ def main() -> None:
                   "kind": "cos" if args.match_desc == "dino" else "hist"} if args.match > 0 else None)
         cache = Path("outputs/s9/cache") / (f"{args.model}_{scene}_d{args.div:g}_v{args.min_voxels}_g{args.merge}"
                                             f"_c{args.min_conf:g}_{args.refine}{'_icp' if args.icp else ''}"
-                                            f"{f'_t{args.tau_rel:g}' if args.tau_rel else ''}.pkl")
+                                            f"{f'_t{args.tau_rel:g}' if args.tau_rel else ''}"
+                                            f"{f'_q{args.conf_drop:g}' if args.conf_drop else ''}.pkl")
         if cache.exists():
             views = pickle.loads(cache.read_bytes())
         else:

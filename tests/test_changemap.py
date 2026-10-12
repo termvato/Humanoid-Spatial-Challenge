@@ -76,3 +76,16 @@ def test_depth_edges_marks_discontinuity_only():
     d[:, 5:] = 2.0
     e = depth_edges(d)
     assert e[:, 4:6].all() and not e[:, :3].any() and not e[:, 7:].any()
+
+
+def test_conf_drop_keeps_same_share(tmp_path):
+    from roomdiff.frames import from_recon_npz
+
+    rng = np.random.default_rng(0)
+    n, h, w = 2, 20, 20
+    for conf in (rng.uniform(0.0, 1.0, (n, h, w)), rng.uniform(0.6, 0.8, (n, h, w))):
+        p = tmp_path / "r.npz"
+        np.savez(p, depth=np.ones((n, h, w)), conf=conf, K=np.tile(np.eye(3), (n, 1, 1)),
+                 T_wc=np.tile(np.eye(4), (n, 1, 1)), video=np.array([1, 2]), src=np.array([0, 0]))
+        f = from_recon_npz(p, conf_drop=0.2)
+        assert abs(f.valid.mean() - 0.8) < 0.02

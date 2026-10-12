@@ -69,11 +69,19 @@ def concat(a: Frames, b: Frames) -> Frames:
                     for k in ("depth", "valid", "K", "T_wc", "video", "src")), rgb, dict(a.meta))
 
 
-def from_recon_npz(path: str | Path, min_conf: float = 0.1, edge_rtol: float = 0.03) -> Frames:
-    """Load a model reconstruction written by infra (reconstruct): one shared frame for both videos."""
+def from_recon_npz(path: str | Path, min_conf: float = 0.1, edge_rtol: float = 0.03,
+                   conf_drop: float = 0.0) -> Frames:
+    """Load a model reconstruction written by infra (reconstruct): one shared frame for both videos.
+
+    conf_drop > 0 replaces the absolute `min_conf` cut by dropping that fraction of the
+    least confident pixels in the scene, so models with differently calibrated
+    confidence keep the same share of pixels (S10).
+    """
     z = np.load(path)
     depth = z["depth"].astype(np.float32)
     conf = z["conf"].astype(np.float32)
+    if conf_drop > 0:
+        min_conf = float(np.quantile(conf, conf_drop))
     valid = (conf > min_conf) & (depth > 0)
     for i in range(len(depth)):
         valid[i] &= ~depth_edges(depth[i], edge_rtol)
