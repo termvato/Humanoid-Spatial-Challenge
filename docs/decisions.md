@@ -66,3 +66,10 @@ Evidence: docs/spikes.md S5 + S9.
 - Headline metric: obj/sc AP without change type. Typed AP is reported but not optimised.
 - Keep the DINOv2 matcher (it also raised untyped AP, 25.5 -> 34.3, by merging duplicate pairs), but no further work on moved matching.
 - Occupancy / costmap grid: not built until D11 is settled (user).
+
+## D13. "Moved" is required after all; add labels and a restore plan (2026-10-12, supersedes D12 in part)
+- The brief's minimum: "Identify and visualize objects or regions that were moved, added, or removed in 3D", and "what changed and where it happened". D12 ranked moved as a bonus; that was a misreading.
+- Output per change in 3D: added / removed with position and size; moved as one object with from -> to and distance (from the DINOv2 removed + added pairing we already have).
+- Semantic labels are also a minimum requirement and are missing: every change needs a name.
+- User idea: a "put the room back" plan (move X from B back to A, return Y, take away Z), shown in the Isaac demo.
+- D12 still holds for the robot maps: blocked / free cells do not depend on the change type.
