@@ -91,3 +91,13 @@ def test_components_merge_joins_nearby_fragments():
     assert len(components(m.ravel(), shape, min_voxels=1)) == 2
     merged = components(m.ravel(), shape, min_voxels=1, merge=2)
     assert len(merged) == 1 and len(merged[0]) == 6  # only original voxels are returned
+
+
+def test_tau_rel_widens_surface_band_with_depth():
+    K1 = np.array([[10.0, 0, 5], [0, 10, 5], [0, 0, 1]])
+    d = np.full((10, 10), 4.0)
+    c = np.array([[0.0, 0.0, 3.85]])  # 15 cm in front of a surface 4 m away
+    h, f = observe(c, d, K1, np.eye(4), tau=0.05)
+    assert f[0] and not h[0]
+    h, f = observe(c, d, K1, np.eye(4), tau=0.05, tau_rel=0.03)  # band 0.05 + 0.12
+    assert h[0] and not f[0]

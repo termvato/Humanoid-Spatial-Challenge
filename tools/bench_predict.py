@@ -32,7 +32,9 @@ def main() -> None:
     ap.add_argument("--merge", type=int, default=0, help="join blobs within N voxels")
     ap.add_argument("--refine", choices=["none", "sam"], default="none")
     ap.add_argument("--match", type=float, default=0.0, help="moved matching: min colour similarity (0 = off)")
+    ap.add_argument("--match-desc", choices=["hist", "dino"], default="hist")
     ap.add_argument("--match-size", type=float, default=0.4, help="moved matching: min voxel count ratio")
+    ap.add_argument("--tau-rel", type=float, default=0.0, help="surface tolerance growth with depth")
     ap.add_argument("--icp", action="store_true", help="refine video 2 onto video 1 with robust ICP")
     ap.add_argument("--recon-dir", type=Path, default=Path("outputs/recon"))
     ap.add_argument("--out", type=Path, required=True)
@@ -42,6 +44,11 @@ def main() -> None:
         from roomdiff.objects import SamRefiner
 
         refine = SamRefiner()
+    descriptor = None
+    if args.match_desc == "dino":
+        from roomdiff.objects import DinoDescriptor
+
+        descriptor = DinoDescriptor()
     summary = {}
     for scene in args.scenes.split(","):
         F = from_recon_npz(args.recon_dir / f"{args.model}_{scene}.npz", min_conf=args.min_conf)
@@ -56,17 +63,20 @@ def main() -> None:
             if f1 > f0:
                 after = after.transformed(T)
                 F = concat(before, after)
-        cm = build(before, after, voxel=voxel, min_voxels=args.min_voxels, merge=args.merge)
-        match = {"min_sim": args.match, "min_size_ratio": args.match_size} if args.match > 0 else None
+        cm = build(before, after, voxel=voxel, min_voxels=args.min_voxels, merge=args.merge,
+                   tau_rel=args.tau_rel)
+        match = ({"min_sim": args.match, "min_size_ratio": args.match_size,
+                  "kind": "cos" if args.match_desc == "dino" else "hist"} if args.match > 0 else None)
         cache = Path("outputs/s9/cache") / (f"{args.model}_{scene}_d{args.div:g}_v{args.min_voxels}_g{args.merge}"
-                                            f"_c{args.min_conf:g}_{args.refine}{'_icp' if args.icp else ''}.pkl")
+                                            f"_c{args.min_conf:g}_{args.refine}{'_icp' if args.icp else ''}"
+                                            f"{f'_t{args.tau_rel:g}' if args.tau_rel else ''}.pkl")
         if cache.exists():
             views = pickle.loads(cache.read_bytes())
         else:
             views = collect_views(cm, F, refine=refine)
             cache.parent.mkdir(parents=True, exist_ok=True)
             cache.write_bytes(pickle.dumps(views))
-        pred = export(cm, F, views, match=match)
+        pred = export(cm, F, views, match=match, descriptor=descriptor)
         d = args.out / "pred" / scene
         d.mkdir(parents=True, exist_ok=True)
         (d / "object_masks.pkl").write_bytes(pickle.dumps(pred))

@@ -56,18 +56,18 @@ def frame_points(frames: Frames, i: int, step: int = 4) -> np.ndarray:
     return pc @ T[:3, :3].T + T[:3, 3]
 
 
-def carve(frames: Frames, centres: np.ndarray, tau: float) -> tuple[np.ndarray, np.ndarray]:
+def carve(frames: Frames, centres: np.ndarray, tau: float, tau_rel: float = 0.0) -> tuple[np.ndarray, np.ndarray]:
     hits = np.zeros(len(centres), np.uint16)
     frees = np.zeros(len(centres), np.uint16)
     for i in range(len(frames)):
-        h, f = observe(centres, frames.depth[i], frames.K[i], frames.T_wc[i], tau=tau, valid=frames.valid[i])
+        h, f = observe(centres, frames.depth[i], frames.K[i], frames.T_wc[i], tau=tau, valid=frames.valid[i], tau_rel=tau_rel)
         hits += h
         frees += f
     return hits, frees
 
 
 def build(before: Frames, after: Frames, voxel: float, tau: float | None = None, min_voxels: int = 15,
-          min_views: int = 2, bounds_pct: float = 1.0, merge: int = 0) -> ChangeMap:
+          min_views: int = 2, bounds_pct: float = 1.0, merge: int = 0, tau_rel: float = 0.0) -> ChangeMap:
     """Change map of two visits in one world frame. `tau` defaults to one voxel.
 
     `merge`: blobs closer than this many voxels are one object (fragmented surfaces).
@@ -87,8 +87,8 @@ def build(before: Frames, after: Frames, voxel: float, tau: float | None = None,
     n = int(np.prod(grid.shape))
     sb = np.zeros(n, np.uint8)
     sa = np.zeros(n, np.uint8)
-    sb[cand] = classify(*carve(before, centres, tau), min_views=min_views)
-    sa[cand] = classify(*carve(after, centres, tau), min_views=min_views)
+    sb[cand] = classify(*carve(before, centres, tau, tau_rel), min_views=min_views)
+    sa[cand] = classify(*carve(after, centres, tau, tau_rel), min_views=min_views)
     lab = compare(sb, sa, grid.shape)
     blobs = []
     for kind in ("removed", "added"):
@@ -159,8 +159,12 @@ def collect_views(cm: ChangeMap, frames: Frames, resample: int = 30, min_px: int
     return views
 
 
-def export(cm: ChangeMap, frames: Frames, views: dict, resample: int = 30, match: dict | None = None) -> dict:
-    """SceneDiff-format objects from per-blob views, optionally merging matched removed + added as moved."""
+def export(cm: ChangeMap, frames: Frames, views: dict, resample: int = 30, match: dict | None = None,
+           descriptor=None) -> dict:
+    """SceneDiff-format objects from per-blob views, optionally merging matched removed + added as moved.
+
+    `descriptor(rgb, mask) -> vector`: appearance descriptor for matching (default colour histogram).
+    """
     from pycocotools import mask as rle
 
     from roomdiff.objects import colour_descriptor, match_moved
@@ -170,8 +174,12 @@ def export(cm: ChangeMap, frames: Frames, views: dict, resample: int = 30, match
     partner: dict[int, int] = {}
     if match is not None and frames.rgb is not None:
         def summary(bid):
-            ds = [colour_descriptor(frames.rgb[i], m) for i, m in views[bid].items()]
-            return {"desc": np.mean(ds, axis=0), "voxels": len(blobs[bid].idx)}
+            fn = descriptor or colour_descriptor
+            ds = [fn(frames.rgb[i], m) for i, m in views[bid].items()]
+            d = np.mean(ds, axis=0)
+            if descriptor is not None:
+                d = d / (np.linalg.norm(d) + 1e-9)
+            return {"desc": d, "voxels": len(blobs[bid].idx)}
         removed = {k: summary(k) for k in views if blobs[k].kind == "removed"}
         added = {k: summary(k) for k in views if blobs[k].kind == "added"}
         for r, a, _ in match_moved(removed, added, **match):

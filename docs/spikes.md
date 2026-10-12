@@ -163,3 +163,10 @@ Same frames for every model (every 10th frame, both videos in one call), same lo
 - The tuning-set fusion gain (+6.4 AP) mostly does not transfer: on held-out it is +1.0 AP, -2.8 typed. 5 pairs hold only 13 GT objects, so the test cannot separate these. A larger held-out set is needed before claiming a gain (val[20:50], 30 pairs: ~$5.4 SceneDiff + ~$1 pi3).
 - 3D-first has the best pixel IoU on both sets: it finds changed regions; it is weak at instances (fragments, noise blobs, failed reconstructions such as gas_station, where pi3 did not co-register the two videos: fitness 0.07).
 - Typed AP is our weakest number: moved objects need a real matcher (appearance features, not colour histograms).
+
+**(e) Later in the night (tuning pairs unless stated):**
+- Depth-proportional surface tolerance (tau + k * depth), aimed at wall false alarms on pair01: k = 0.01 / 0.02 / 0.04 -> AP 16.4 / 15.6 / 8.5 vs 17.9 without. **Rejected**: it swallows the benchmark's small close-range objects.
+- Moved matching with DINOv2 ViT-S/14 mean patch features under the SAM mask (cosine), greedy one-to-one with a voxel-size gate (`objects.DinoDescriptor`, `match_moved(kind="cos")`). Threshold 0.4 / 0.5 / 0.6 / 0.7 / 0.8 -> AP 30.8 / **34.3** / 32.6 / 32.2 / 26.6, typed 22.5 / **23.6** / 21.4 / 21.2 / 15.3 (from 25.5 / 12.6 without matching). **Kept at 0.5.**
+- Held-out (5 S1 pairs, frozen): 3D-first with DINO matching 18.0 AP, 12.6 typed (SceneDiff 32.0 / 15.8). Fusion (rescore + add) 33.0 / 13.0: level with SceneDiff. Chart: outputs/s9/s9_results.png.
+- **pair01 (own room, plain video, pi3, ICP, SAM; voxel median/80 as tuned on the benchmark):** top 12 detections hold suitcase removed + added, blanket removed, pouch added, hat removed (on the wardrobe), blue tool's old spot (removed). That is 5 of 6 changes found (pen missed; tool only as removed) vs SceneDiff's 3 of 6. Remaining false alarms are wall / cornice patches above the wardrobe and small fragments. outputs/s9/pair01_d80/objects.jpg (also /40: same changes minus the tool).
+- Cost of the night on Modal: roughly $9 (pi3 recon 21 pairs, 4 models x 16 runs, SceneDiff on 15 pairs, evaluations).

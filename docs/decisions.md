@@ -53,3 +53,10 @@
 - Evidence so far: S7 (3D-first with LiDAR) found the big change cleanly, was immune to the light change, and produced "unobserved" natively. SceneDiff (2D masks on a joint reconstruction) produced most false alarms from lighting (S2, S6) and outputs 2D masks we would have to lift to 3D anyway.
 - D9 needs per-voxel visibility (unobserved, viewpoints, costmap), which is a 3D-first output.
 - Proposed: 3D-first core, SceneDiff's appearance cues demoted to a small-object bonus that geometry verifies. Pending S9: does plain-video depth (feed-forward model) give a usable map?
+
+## D11. Reconstruction model and pipeline shape (2026-10-12, PROPOSED, user to decide)
+Evidence: docs/spikes.md S5 + S9.
+- Model: pi3 gives the best change detection on the benchmark at every setting; Pi3X gives the best geometry on pair01 (ATE 3.3 cm, depth 2.2%) and near-metric scale (1.016) but worse benchmark AP (11.4 vs 15.3, geometry only). VGGT and DA3 are far behind on change detection; MapAnything far behind on geometry (focal 22% off, possibly our integration).
+  Proposal: pi3 for change detection; Pi3X only if metric scale is needed without the phone (else ARKit gives scale).
+- Pipeline: 3D-first core (pi3 -> robust ICP -> voxel carving -> SAM object masks -> DINOv2 moved matching) as the primary system, because it is the only one that yields 3D boxes, unobserved space and a costmap (D9), and it found 5 of 6 changes on pair01 vs SceneDiff's 3. SceneDiff stays as a second (appearance) channel through fusion.
+- Not yet proven: that 3D-first or fusion beats SceneDiff on held-out benchmark pairs (5 pairs is too few). Next test: 30 more SD-V val pairs, ~$6.5.

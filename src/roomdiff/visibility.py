@@ -62,10 +62,12 @@ def observe(
     T_wc: np.ndarray,
     tau: float = 0.05,
     valid: np.ndarray | None = None,
+    tau_rel: float = 0.0,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Boolean (hit, free) per voxel centre for one depth frame (OpenCV camera axes).
 
     `valid` masks depth pixels to trust (confidence, range, edges); default: depth > 0.
+    `tau_rel`: surface tolerance grows with depth, tau + tau_rel * depth (depth noise grows with range).
     """
     R, t = T_wc[:3, :3], T_wc[:3, 3]
     pc = (centres - t) @ R  # world -> camera: R^T (x - t), written for row vectors
@@ -83,8 +85,9 @@ def observe(
     if valid is not None:
         ok &= valid[v[inside], u[inside]]
     zs = z[sel]
-    hit[sel] = ok & (np.abs(zs - d) <= tau)
-    free[sel] = ok & (zs < d - tau)
+    t = tau + tau_rel * d
+    hit[sel] = ok & (np.abs(zs - d) <= t)
+    free[sel] = ok & (zs < d - t)
     return hit, free
 
 

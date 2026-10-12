@@ -86,12 +86,13 @@ def colour_descriptor(rgb: np.ndarray, mask: np.ndarray, bins: tuple[int, int, i
 
 
 def match_moved(removed: dict[int, dict], added: dict[int, dict], min_sim: float = 0.5,
-                min_size_ratio: float = 0.4) -> list[tuple[int, int, float]]:
+                min_size_ratio: float = 0.4, kind: str = "hist") -> list[tuple[int, int, float]]:
     """Pair removed and added objects that are the same thing in a new place (greedy, best first).
 
-    Each value: {"desc": colour descriptor, "voxels": int}. Similarity = histogram
-    intersection; pairs whose voxel counts differ by more than 1/min_size_ratio are not
-    considered. Returns (removed_id, added_id, similarity).
+    Each value: {"desc": descriptor, "voxels": int}. Similarity = histogram intersection
+    for colour histograms (kind="hist") or cosine for unit feature vectors (kind="cos");
+    pairs whose voxel counts differ by more than 1/min_size_ratio are not considered.
+    Returns (removed_id, added_id, similarity).
     """
     cands = []
     for r, a_r in removed.items():
@@ -99,7 +100,10 @@ def match_moved(removed: dict[int, dict], added: dict[int, dict], min_sim: float
             ratio = min(a_r["voxels"], a_a["voxels"]) / max(a_r["voxels"], a_a["voxels"])
             if ratio < min_size_ratio:
                 continue
-            sim = float(np.minimum(a_r["desc"], a_a["desc"]).sum())
+            if kind == "hist":
+                sim = float(np.minimum(a_r["desc"], a_a["desc"]).sum())
+            else:
+                sim = float(a_r["desc"] @ a_a["desc"])
             if sim >= min_sim:
                 cands.append((sim, r, a))
     used_r, used_a, pairs = set(), set(), []
@@ -110,3 +114,31 @@ def match_moved(removed: dict[int, dict], added: dict[int, dict], min_sim: float
         used_a.add(a)
         pairs.append((r, a, sim))
     return pairs
+
+
+class DinoDescriptor:
+    """Mean DINOv2 ViT-S/14 patch feature under a mask (L2-normalised). Lazily loaded via torch.hub."""
+
+    def __init__(self, device: str = "cuda", size: int = 448):
+        self.device, self.size = device, size
+        self.model = None
+
+    def __call__(self, rgb: np.ndarray, mask: np.ndarray) -> np.ndarray:
+        import torch
+
+        if self.model is None:
+            self.model = torch.hub.load("facebookresearch/dinov2", "dinov2_vits14").to(self.device).eval()
+        h, w = rgb.shape[:2]
+        s = self.size / max(h, w)
+        nh, nw = max(14, round(h * s / 14) * 14), max(14, round(w * s / 14) * 14)
+        x = cv2.resize(rgb, (nw, nh)).astype(np.float32) / 255.0
+        x = (x - [0.485, 0.456, 0.406]) / [0.229, 0.224, 0.225]
+        t = torch.from_numpy(x.transpose(2, 0, 1)).float()[None].to(self.device)
+        with torch.no_grad():
+            f = self.model.forward_features(t)["x_norm_patchtokens"][0]  # (nh/14 * nw/14, 384)
+        f = f.reshape(nh // 14, nw // 14, -1).cpu().numpy()
+        m = cv2.resize(mask.astype(np.uint8), (nw // 14, nh // 14), interpolation=cv2.INTER_AREA) > 0
+        if not m.any():
+            m = cv2.resize(mask.astype(np.uint8), (nw // 14, nh // 14), interpolation=cv2.INTER_NEAREST) > 0
+        v = f[m].mean(0) if m.any() else f.reshape(-1, f.shape[-1]).mean(0)
+        return v / (np.linalg.norm(v) + 1e-9)

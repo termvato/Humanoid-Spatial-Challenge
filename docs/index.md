@@ -9,12 +9,14 @@ Start here. Every other doc is linked from this page. Update the status board at
 | S1 SceneDiff on 5 val pairs (Modal) | **PASS**: fork SceneDiff; 7 TP, 30 FP, 6 FN | cut SAM cost before scaling | Claude |
 | S2 own phone pair | **borderline**: 3 of 6 found (2 fully right), 4 false alarms; pipeline viable | superseded by S6 | done |
 | S6 keyframes (coverage x sharpness x no-finger) | **FAIL**: same 3 of 6, 7 false alarms; frame choice not the bottleneck | keep uniform; finger filter kept | done |
-| S8 geometric veto: LiDAR map vetoes SceneDiff FPs | parked until pair02 | run on pair02 | Claude |
+| S8 geometric veto | done as fusion in S9 (model depth, not LiDAR) | | done |
+| S9 3D-first on plain video | **(a) PASS** pair01; **(b) 18.0 AP held-out (band: 3D core + SceneDiff channel)**; pair01 5 of 6 found | 30-pair held-out test (~$6.5) | user |
+| D11 model + pipeline shape | proposed | decide | user |
 | pair02 capture (better hygiene, same lighting) | user recording | run SceneDiff + S7 map on it | user |
 | S7 LiDAR 3-state change map | **works**: suitcase move found in 3D, blanket partial, hat = unobserved; 2 edge FPs | fuse with SceneDiff (head A) | Claude |
 | S3 Isaac render speed | **PASS** 9.4 fps, 4.4 GB | none | done |
 | S4 keyless vs gated models | blocked on S1 | run after S1 | Claude |
-| S5 pi3X vs DA3 vs ARKit poses | blocked on S2 | run after S2 | Claude |
+| S5 reconstruction models (pi3, Pi3X, VGGT, DA3, MapAnything) | **done**: Pi3X best geometry, pi3 best change detection | D11 decision | user |
 | Training data choice (SceneDiff val / 3RScan / Isaac) | open | decide after S1 | user |
 | Plan (`plan.md`) | not written | write after S1 + S2 | Claude |
 
@@ -79,6 +81,14 @@ flowchart LR
 | `src/roomdiff/keyframes.py` | sharpness, finger mask, window and coverage keyframe selection, 9 tests |
 | `tools/visibility_map.py` | S7 map on a pair: result.json, labels.npz, bev.png, blobs.jpg |
 | `tools/make_keyframe_pair.py`, `tools/filter_occluded.py` | S6 keyframe pair and finger filter |
+| `src/roomdiff/frames.py` | one posed-depth container for LiDAR and every model |
+| `src/roomdiff/changemap.py` | 3D-first change map (sparse carving), blob -> 2D masks, SceneDiff export, moved matching |
+| `src/roomdiff/objects.py` | SAM object layer, colour and DINOv2 descriptors, moved matcher |
+| `src/roomdiff/metrics.py` | Umeyama Sim3, ATE, depth AbsRel |
+| `infra/modal_models.py` | Pi3X, VGGT, DA3, MapAnything on Modal, same frames and format |
+| `tools/score_recon.py` | S5 scorer vs ARKit + LiDAR |
+| `tools/bench_predict.py`, `tools/s9_sweep.sh`, `tools/fuse.py`, `tools/plot_s9.py` | benchmark export, sweeps with official evaluator, fusion, chart |
+| `tools/run_pair.py` | full pipeline on one pair with pictures |
 | `third_party/` | SceneDiff clone, 3RScan download script (untracked) |
 
 ## Open questions

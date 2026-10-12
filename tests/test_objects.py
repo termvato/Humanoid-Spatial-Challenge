@@ -47,3 +47,13 @@ def test_match_moved_greedy_one_to_one_with_size_gate():
     added = {5: {"desc": red, "voxels": 90}, 6: {"desc": blue, "voxels": 10}}  # blue one too small
     pairs = match_moved(removed, added)
     assert [(r, a) for r, a, _ in pairs] == [(0, 5)]
+
+
+def test_match_moved_cosine_kind():
+    from roomdiff.objects import match_moved
+
+    a = np.array([1.0, 0.0])
+    b = np.array([0.6, 0.8])
+    pairs = match_moved({0: {"desc": a, "voxels": 10}}, {1: {"desc": b, "voxels": 10}}, min_sim=0.5, kind="cos")
+    assert pairs == [(0, 1, 0.6)]
+    assert match_moved({0: {"desc": a, "voxels": 10}}, {1: {"desc": b, "voxels": 10}}, min_sim=0.7, kind="cos") == []
