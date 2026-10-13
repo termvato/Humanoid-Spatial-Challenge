@@ -16,7 +16,7 @@ Start here. Every other doc is linked from this page. Update the status board at
 | False alarms (walls, edges, shadow) | VLM before/after check adopted as score (D15). Confident list: pair01 6, pair02 6 false alarms (from 46 / 33), all real changes kept (fp+slant). Size filter and hard VLM filter rejected (S15, S16) | carving choice for own rooms; moved-pair label agreement | Claude |
 | Labels (D13) | Qwen2.5-VL names each change (printer, white shoe, hat, suitcase); some wrong ('floor' for the moved suitcase) | label from the object's own view only; label agreement for moved | Claude |
 | Isaac demo | frozen (D14): demo.mp4 exists, no more work | | done |
-| Isaac diff-drive demo | not started (S3: laptop renders 9.4 fps) | next | Claude |
+| Isaac diff-drive demo | dropped (D14: the demo is the two videos) | | done |
 | README + design note | not started | last day | Claude |
 
 ## Pipeline (as built, D11)
