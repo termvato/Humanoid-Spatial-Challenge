@@ -29,16 +29,18 @@ class VLM:
         self.proc = AutoProcessor.from_pretrained(MODEL, max_pixels=448 * 448)
 
     @modal.method()
-    def ask(self, items: list[list[bytes]], prompt: str, max_new_tokens: int = 16) -> list[str]:
-        """One answer per item; an item is a list of JPEG images shown together with `prompt`."""
+    def ask(self, items: list[list[bytes]], prompt: str | list[str], max_new_tokens: int = 16) -> list[str]:
+        """One answer per item; an item is a list of JPEG images shown together with `prompt` (one for all
+        items, or one per item)."""
         import io
 
         from PIL import Image
 
         out = []
-        for jpegs in items:
+        prompts = [prompt] * len(items) if isinstance(prompt, str) else prompt
+        for jpegs, text_prompt in zip(items, prompts, strict=True):
             imgs = [Image.open(io.BytesIO(b)).convert("RGB") for b in jpegs]
-            msgs = [{"role": "user", "content": [*({"type": "image"} for _ in imgs), {"type": "text", "text": prompt}]}]
+            msgs = [{"role": "user", "content": [*({"type": "image"} for _ in imgs), {"type": "text", "text": text_prompt}]}]
             text = self.proc.apply_chat_template(msgs, tokenize=False, add_generation_prompt=True)
             inp = self.proc(text=[text], images=imgs, return_tensors="pt").to("cuda")
             gen = self.model.generate(**inp, max_new_tokens=max_new_tokens, do_sample=False)

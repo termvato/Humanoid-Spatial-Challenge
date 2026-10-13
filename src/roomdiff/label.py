@@ -14,21 +14,51 @@ import cv2
 import numpy as np
 
 PROMPT = (
-    "Each image shows the same spot from a different angle; the red box marks a region found by a "
-    "change detector. What object is inside the red box? Answer with a short name (1-4 words, e.g. "
-    "'black suitcase'). If the box holds no distinct movable object (only wall, floor, ceiling, door "
-    "frame, shadow, reflection, or an image edge), answer exactly: none"
+    "The red box in each image marks the same object, seen from different angles (a moved object is "
+    "shown at its old and its new place). What object is inside the red box? Answer with a short name "
+    "(1-4 words, e.g. 'black suitcase'). If the box holds no distinct movable object (only wall, floor, "
+    "ceiling, door frame, shadow, reflection, or an image edge), answer exactly: none"
 )
 NONE = {"none", "nothing", "no object", "n/a"}
+# S19: the VLM often names the structure instead of answering "none"; such answers are not objects
+STRUCTURE = ("wall", "floor", "ceiling", "door frame", "doorframe", "door", "baseboard", "skirting board",
+             "shadow", "reflection", "window", "door handle", "door knob", "doorknob", "light switch",
+             "outlet", "socket", "tile", "tiles", "staircase", "stairs", "corner", "edge")
+STILL_THERE = (  # S21: naming the object; "no" = changed
+    "The red box in image 1 contains a {name}. Image 2 shows the same place at another time. "
+    "Is the {name} inside the red box in image 2? Answer yes or no."
+)
 COMPARE = (  # S16: a one-word "changed / same" version answered "same" for most real changes
     "Look at the region inside the red box in image 1 and in image 2 (same place, two different times). "
     "Is there an object inside the box in one image that is missing from the other image? Answer yes or no."
 )
 
 
-def best_views(views: dict[int, np.ndarray], k: int = 3) -> list[int]:
-    """Up to k frame indices with the largest masks, spread over the video (no two adjacent picks)."""
-    order = sorted(views, key=lambda f: -int(views[f].sum()))
+def sharpness(rgb: np.ndarray, mask: np.ndarray) -> float:
+    """Variance of the Laplacian inside the mask's bounding box (higher = sharper)."""
+    ys, xs = np.nonzero(mask)
+    g = cv2.cvtColor(np.ascontiguousarray(rgb[ys.min():ys.max() + 1, xs.min():xs.max() + 1]), cv2.COLOR_RGB2GRAY)
+    return float(cv2.Laplacian(g, cv2.CV_64F).var())
+
+
+def touches_border(mask: np.ndarray, px: int = 2) -> bool:
+    return bool(mask[:px].any() or mask[-px:].any() or mask[:, :px].any() or mask[:, -px:].any())
+
+
+def best_views(views: dict[int, np.ndarray], k: int = 3, rgb: np.ndarray | None = None) -> list[int]:
+    """Up to k frame indices, best first, spread over the video (no two adjacent picks).
+
+    Without `rgb`: largest masks. With `rgb` (S19): masks cut by the image border are skipped (when
+    any other view exists) and the area is weighted by sharpness relative to the median view, capped
+    at 1, so a blurry close-up cannot win on size alone."""
+    score = {f: float(m.sum()) for f, m in views.items()}
+    if rgb is not None and views:
+        inside = [f for f in views if not touches_border(views[f])]
+        cand = inside or list(views)
+        sharp = {f: sharpness(rgb[f], views[f]) for f in cand}
+        med = float(np.median(list(sharp.values()))) or 1.0
+        score = {f: score[f] * min(1.0, sharp[f] / med) for f in cand}
+    order = sorted(score, key=lambda f: -score[f])
     picked: list[int] = []
     gap = max(1, (max(views) - min(views)) // (2 * k)) if views else 1
     for f in order:
@@ -48,13 +78,14 @@ def closest_poses(T_wc: np.ndarray, f: int, candidates: np.ndarray, scale: float
     return candidates[np.argsort(d + a)]
 
 
-def other_view(frames, cm, views: dict, bid: int, min_px: int = 50, tries: int = 60
+def other_view(frames, cm, views: dict, bid: int, min_px: int = 50, tries: int = 60, f: int | None = None
                ) -> tuple[int, int, np.ndarray] | None:
-    """(own frame, other-video frame, mask there) for blob `bid`: its best own view and the closest camera
-    in the other video where the blob projects to >= `min_px` visible pixels; None if there is none."""
+    """(own frame, other-video frame, mask there) for blob `bid`: own frame `f` (default its best view) and
+    the closest camera in the other video where the blob projects to >= `min_px` visible pixels; None if
+    there is none."""
     from roomdiff.changemap import blob_mask
 
-    f = best_views(views[bid], k=1)[0]
+    f = best_views(views[bid], k=1)[0] if f is None else f  # default: largest mask (S17 benchmark setting)
     centres = cm.grid.centres_of(next(b for b in cm.blobs if b.id == bid).idx)
     other = np.flatnonzero(frames.video != frames.video[f])
     for g in closest_poses(frames.T_wc, f, other, frames.median_depth())[:tries]:
@@ -93,8 +124,23 @@ def changed(answer: str) -> bool | None:
     return True if a.startswith("yes") else False if a.startswith("no") else None
 
 
+def gone(answer: str) -> bool | None:
+    """STILL_THERE answer -> True (gone: changed), False (still there), None (unclear)."""
+    v = changed(answer)
+    return None if v is None else not v
+
+
+def majority(votes: list[bool | None]) -> bool | None:
+    """S20: changed if at least half of the clear answers say so; None if there is no clear answer."""
+    v = [x for x in votes if x is not None]
+    return None if not v else 2 * sum(v) >= len(v)
+
+
 def parse(answer: str) -> str | None:
     """VLM answer -> label, or None when it says the outline holds no object."""
     a = re.sub(r"[^a-z0-9 \-]", "", answer.strip().lower().splitlines()[0] if answer.strip() else "").strip()
     a = re.sub(r"^(a|an|the) ", "", a)
-    return None if not a or a in NONE or a.startswith("none") else a
+    if not a or a in NONE or a.startswith("none"):
+        return None
+    head = re.split(r" (?:on|in|of|with|at|near|under) ", a)[0]  # "hat on shelf" -> "hat"
+    return None if any(head == w or head.endswith(" " + w) for w in STRUCTURE) else a

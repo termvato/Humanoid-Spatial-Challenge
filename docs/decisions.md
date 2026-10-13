@@ -84,3 +84,9 @@ Evidence: docs/spikes.md S5 + S9.
 - Evidence: S17 tuning 34.3 -> 38.1, held-out 18.0 -> 23.1, typed 12.6 -> 21.4. As a hard filter (S16) it lost real changes.
 - The change list keeps every detection; "confident": false ones are listed last. The same VLM names each change (labels, D13).
 - Open: which carving for own rooms. fp+slant keeps the blanket in pair01's confident list, current carving does not; benchmark slightly prefers current. Not decided on 2 rooms.
+
+## D16. fp+slant carving for own videos, current carving on the benchmark (2026-10-13, from S14 + S17 numbers)
+- Own pairs, VLM-rescored confident list (tools/score_own.py --confident): pair01 fp+slant 5/6 with 6 false alarms vs current 4/6 with 12 (current loses the blanket); pair02 4/4 with 6 vs 4/4 with 9. All detections: 30 vs 46 and 28 vs 33 false alarms. fp+slant wins every count.
+- Benchmark: current carving slightly ahead (tuning 38.1 vs 37.6, held-out 23.1 vs 20.9, 13 objects).
+- The deliverable is phone video of real rooms, so tools/analyse.py defaults to fp+slant (--footprint --slant on; --plain-carving to switch off). tools/bench_predict.py keeps the current carving. Both numbers are reported.
+- User: "test both and decide".

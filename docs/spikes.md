@@ -19,6 +19,10 @@ Each spike has a pass/fail rule written BEFORE running it, so the result decides
 | S15 | Does a minimum object size cut false alarms? (pair01: most of 46 false alarms are 5-10 cm fragments) | Drop blobs whose largest side is under 4 / 6 / 8 / 12 voxels (scale-free; 7 voxels ~ 12 cm on pair01), after SAM (cached masks). Current and fp+slant carving. Tuning pairs + own pairs (tools/score_own.py) | Adopt the largest threshold with tuning AP >= 33.3 (at most 1.0 below 34.3) AND no own-pair change lost; report false alarms cut. Held-out 5 must stay >= 17.0 | pennies |
 | S16 | Does a VLM before/after check cut false alarms? Each change's best crop next to the same 3D spot from the closest camera in the other video; Qwen2.5-VL-7B answers 'changed' or 'same' | Drop a change when every one of its blobs is judged 'same'. Own pairs (current and fp+slant carving), then tuning pairs | Adopt if own pairs lose no true change AND false alarms drop >= 30%; then tuning AP >= 33.3 and held-out >= 17.0. Otherwise keep the verdict as information only | ~$0.5 Modal |
 | S17 | Does the VLM verdict work as a score instead of a filter? (S16 filter halved objects but lost real ones) | Blobs the VLM answers 'no' keep their masks but their score (voxel count) is multiplied by 0.1 / 0.3. Current and fp+slant carving; cached verdicts | Adopt the best if tuning AP >= 34.3 (no loss); then held-out >= 18.0. The user-facing list is then cut by score, chosen on own pairs | pennies |
+| S18 | Does merging fragments give one entry per object? (pair01 fp+slant confident list: suitcase 3 entries, hat 2) | Merge changes of the same kind whose 3D boxes (map frame, with height) are within 10 cm; moved: both ends. Own pairs, fp+slant, before labelling | Adopt if every found true change on pair01 / pair02 is exactly one confident entry, no true change lost, and no merged entry covers two different true changes. Report-level only, the benchmark export is untouched | laptop |
+| S19 | Do better views fix the labels? (suitcase 'floor': one of its 3 crops was a blurry floor close-up, one cut by the image edge) | Crops ranked by mask area x sharpness, masks touching the image border dropped; one VLM question per change with all its blobs' crops; answers naming structure (wall, floor, ceiling, door frame, baseboard, shadow, door handle, ...) count as not an object (confident false) | Adopt if: of the 9 found true changes, >= 7 get a name the user accepts (now 5: pouch 'black wallet', hat, printer, cap 'hat on table', shoe; misses: suitcase 'floor', blanket 'white pillow', blue tool 'blue and black object', box); no true change leaves the confident list; confident false alarms not above now (6, 6) | ~$0.1 Modal |
+| S20 | Is a majority vote over several views a stable before/after verdict? (S19: the white shoe's verdict flipped yes -> no when its own crop's box moved a few pixels; other crop byte-identical, greedy decoding) | Per blob, the before/after question on up to 3 own views, each with its own closest camera in the other video; changed = majority of the answers (a tie counts as changed). S18 + S19 otherwise unchanged | Adopt if every found true change on both own pairs is confident AND confident false alarms <= 6 per pair (the S17 level). Then S19 is judged again on this run. Benchmark rescoring keeps one view (S17) unless retested | ~$0.1 Modal |
+| S21 | Does a question naming the object fix the verdict? (S20: the white shoe still voted no/yes/no; the after box holds the black boot, so 'is an object missing' is answered no) | Same 3 view pairs as S20, own view first: 'The red box in image 1 contains a {name}. Image 2 shows the same place at another time. Is the {name} inside the red box in image 2?' 'no' = changed; majority as S20. {name} is the S19 label; changes without a name stay low | Same as S20: every found true change on both own pairs confident AND confident false alarms <= 6 per pair | ~$0.1 Modal |
 
 ## Summary of all tests (2026-10-12)
 
@@ -41,6 +45,10 @@ Each spike has a pass/fail rule written BEFORE running it, so the result decides
 | S14 | Conservative carving (whole voxel seen past, normal margin) | not adopted | Tuning 35.4 with 24% fewer objects, but held-out 17.2 < 18.0. 5 pairs too few to tell; off by default |
 | S17 | VLM verdict as a score (x0.1 when it says unchanged) | **adopted** | Tuning 34.3 -> 38.1 (typed 23.6 -> 28.9); held-out 18.0 -> 23.1 (typed 12.6 -> 21.4, above SceneDiff's 15.8; untyped still below its 32.0) |
 | S16 | VLM before/after check as a filter | not adopted | Own pairs: false alarms 46 -> 6 and 33 -> 6 with fp+slant, no change lost (dev data). Tuning AP 31.2 (objects 283 -> 136): it drops real benchmark changes |
+| S18 | Merge fragments of one object | **adopted** | pair01 entries 42 -> 24, pair02 36 -> 27, no true change lost or merged with another; pair01 every true change is one confident entry (suitcase was 3, hat 2) |
+| S19 | Better views + one name per change + structure answers = not an object | names better, rule failed | suitcase 'floor' -> 'black suitcase', hat -> 'straw hat'; confident false alarms 6 -> 2 (pair01), 6 -> 4 (pair02). Failed only because the white shoe's yes/no verdict flipped on a few-pixel crop change |
+| S20 | Majority vote over 3 view pairs | not adopted | Shoe still voted no (no / yes / no): the after box holds the black boot, so 'is an object missing' is 'no' |
+| S21 | Before/after question naming the object | not adopted | Shoe recovered (4/4 and 5/5), but 'no' to nearly everything: confident false alarms 8 and 12 > 6 |
 | S15 | Minimum object size | not adopted | Only 4 voxels keeps tuning AP (33.9); 6+ voxels cost 3+ AP. The benchmark is full of small objects; size cannot be the false-alarm filter |
 
 Code tidy (2026-10-12): rejected options removed from the code (git history keeps them); one pipeline for video and LiDAR (`roomdiff.pipeline`). Re-running the final settings reproduced the tuning result exactly (34.33 / 23.56) and S5 pi3 (ATE 4.2 cm, AbsRel 0.032). Tool names in older entries below may no longer exist.
@@ -292,3 +300,21 @@ Same frames for every model (every 10th frame, both videos in one call), same lo
 - Same signal, two uses: as a filter it lost real changes (S16), as a ranking it lifts both AP and typed AP. Typed AP gains most: noise blobs no longer outrank real ones in moved pairing order.
 - Held-out typed AP now beats SceneDiff (21.4 vs 15.8); untyped AP is still behind (23.1 vs 32.0). 5 pairs, 13 objects: indicative only.
 - On own pairs (development data), the confident list: pair01 5/6 with 6 false alarms (fp+slant carving) or 4/6 with 12 (current); pair02 4/4 with 6 or 9.
+
+
+### S18-S21: fragments, names, before/after verdict on own pairs (2026-10-14)
+
+Runs: outputs/s18 (S18 + S19), outputs/s20, outputs/s21 (S20 crops relabelled). fp+slant carving (D16). Scorer: tools/score_own.py logic, radius 0.3 m, per-truth entries.
+
+| Run | pair01 confident | FA | pair02 confident | FA |
+|---|---|---|---|---|
+| before (S17, fa/*_fpslant) | 5/6 (suitcase 3 entries, hat 2) | 6 | 4/4 | 6 |
+| S18 + S19 | 5/6, one entry each | **2** | 3/4 (shoe low) | **4** |
+| S20 majority | 5/6 | 2 | 3/4 (shoe low) | 5 |
+| S21 named question | 5/6 | 8 | 4/4 | 12 |
+
+- S18 adopted: merging is report-level only (benchmark export untouched). The printer and box ground truths are 24 cm apart, so with a 0.3 m radius the same entries hit both; not a merge error (it was so before).
+- S19 names on the 9 found true changes: black suitcase, white towels (blanket), black wallet (pouch), straw hat, black book (blue tool: wrong), printer, box (only 'printer box', low), gray hat (cap), white shoe. 6 clearly right, blanket and box for the user to judge.
+- The verdict is the weak part. One crop pair, a 3-vote majority and a named question each flip one item on 9 true changes: the confident cut is at the noise level of 2 rooms. Qwen2.5-VL-7B's yes/no is biased by the wording (generic question: mostly 'no'; named question: mostly 'gone').
+- The pen is never detected (outside every blob), so pair01 stays 5/6.
+- S17's shoe 'yes' was luck: the same question on a crop moved by a few pixels says 'no'.

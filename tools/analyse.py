@@ -9,7 +9,7 @@ Usage: uv run --group gpu python tools/analyse.py outputs/recon/pi3_pair02.npz -
 Writes:
   changes.json     added / removed / moved, map-frame boxes, moved distance
   changes.jpg      one picture per change (red where it was, green where it is)
-  crops/           per change and blob, up to 3 outlined crops for the labeller (tools/label.py)
+  crops/           per change and blob, up to 3 outlined crops and their other-video views (tools/label.py)
   before|after.{pgm,yaml}, look_mask.{pgm,yaml}   ROS map_server maps
   viewpoints.json  where to stand to look at each unobserved region (x, y, yaw)
   map.png          after map with changes and viewpoints
@@ -62,7 +62,8 @@ def change_tiles(chs: list[Change], views: dict, rgb: np.ndarray, kinds: dict[in
     tiles = []
     for i, c in enumerate(chs):
         for bid in c.blobs:
-            f, m = max(views[bid].items(), key=lambda kv: kv[1].sum())
+            f = best_views(views[bid], k=1, rgb=rgb)[0]
+            m = views[bid][f]
             where = "was" if kinds[bid] == "removed" else "now"
             text = f"#{i} {c.kind}" + (f" {c.distance:.2f} m" if c.distance else "") + f" ({where})"
             tiles.append(tile(rgb[f], m, RED if kinds[bid] == "removed" else GREEN, text))
@@ -70,8 +71,8 @@ def change_tiles(chs: list[Change], views: dict, rgb: np.ndarray, kinds: dict[in
 
 
 def write_crops(out: Path, chs: list[Change], views: dict, pair, cm) -> None:
-    """Per change and blob, up to 3 outlined crops <change>_<blob>_<k>.jpg from its own video, and the
-    same 3D spot from the closest camera in the other video, <change>_<blob>_0x.jpg."""
+    """Per change and blob, up to 3 outlined crops <change>_<blob>_<k>.jpg from its own video, and for each
+    the same 3D spot from the closest camera in the other video, <change>_<blob>_<k>x.jpg (S20)."""
     F = pair.frames
     out.mkdir(exist_ok=True)
 
@@ -79,11 +80,11 @@ def write_crops(out: Path, chs: list[Change], views: dict, pair, cm) -> None:
         cv2.imwrite(str(out / name), cv2.cvtColor(crop(F.rgb[f], m), cv2.COLOR_RGB2BGR))
     for i, c in enumerate(chs):
         for bid in c.blobs:
-            for k, f in enumerate(best_views(views[bid])):
+            for k, f in enumerate(best_views(views[bid], rgb=F.rgb)):
                 save(f"{i}_{bid}_{k}.jpg", f, views[bid][f])
-            o = other_view(F, cm, views, bid)
-            if o:
-                save(f"{i}_{bid}_0x.jpg", o[1], o[2])
+                o = other_view(F, cm, views, bid, f=f)
+                if o:
+                    save(f"{i}_{bid}_{k}x.jpg", o[1], o[2])
 
 
 def draw_map(maps: RobotMaps, chs: list[Change], vps: list[Viewpoint]) -> np.ndarray:
@@ -115,8 +116,9 @@ def main() -> None:
     ap.add_argument("--no-icp", action="store_true", help="poses are exact (simulation): skip ICP between visits")
     ap.add_argument("--no-sam", action="store_true")
     ap.add_argument("--max-incidence", type=float, default=0.0, help="no free evidence beyond this angle (0 = off)")
-    ap.add_argument("--slant", action="store_true", help="free margin measured along the surface normal")
-    ap.add_argument("--footprint", action="store_true", help="free only if the whole voxel is seen past")
+    ap.add_argument("--plain-carving", action="store_true",
+                    help="free if the voxel centre is seen past (benchmark setting); default is conservative "
+                         "carving: whole voxel seen past, margin along the surface normal (D16)")
     ap.add_argument("--min-extent", type=float, default=0.0, help="drop blobs whose largest side is under this many voxels")
     ap.add_argument("--match", type=float, default=0.5, help="moved matching: min DINOv2 cosine (0 = off)")
     ap.add_argument("--res", type=float, default=0.05, help="map cell, metres")
@@ -127,8 +129,8 @@ def main() -> None:
 
     lidar = args.input.is_dir()
     pair = run_lidar(args.input) if lidar else run(args.input, div=args.div, icp=not args.no_icp,
-                                                    max_incidence=args.max_incidence or None, slant=args.slant,
-                                                    footprint=args.footprint)
+                                                    max_incidence=args.max_incidence or None, slant=not args.plain_carving,
+                                                    footprint=not args.plain_carving)
     T, scale = level(pair, metric=lidar or args.metric, scale=args.scale)
     F, cm = pair.frames, pair.cm
     colour = F.rgb is not None
