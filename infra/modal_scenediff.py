@@ -6,6 +6,7 @@ Functions (results persisted in the `scenediff` volume):
   predict        GPU  SceneDiff (default config) on benchmark pairs
   predict_own    GPU  SceneDiff on one of our pairs in /vol/own/<pair>
   reconstruct    GPU  pi3 on both videos jointly -> /vol/outputs/recon/<name>.npz (our pipeline's input)
+  mix            CPU  two-room fake pair (video 1 of one pair, video 2 of another), S23
   evaluate       CPU  official evaluator on predictions in /vol/outputs/<tag>/pred
 
 Usage:
@@ -14,6 +15,7 @@ Usage:
   uv run modal run infra/modal_scenediff.py::baseline --scenes a,b --tag sd_run
   uv run modal run infra/modal_scenediff.py::recon --scenes a,b --own pair02
   uv run modal run infra/modal_scenediff.py::own --pair pair02
+  uv run modal run infra/modal_scenediff.py::mixed --pairs pair01:pair02,pair02:pair01
   uv run modal run infra/modal_scenediff.py::evalpred --tag run --scenes a,b
 
 DINOv3 links are signed and personal: they live in ~/.config/spatial-project/dinov3.env
@@ -275,6 +277,36 @@ def recon(scenes: str = "", own: str = "", stride: int = 10) -> None:
     jobs = [(str(BENCH / "data" / s), s) for s in scenes.split(",") if s]
     jobs += [(str(OWN / p), p) for p in own.split(",") if p]
     for r in reconstruct.starmap([(d, n, stride) for d, n in jobs]):
+        print(r)
+
+
+@app.function(volumes={"/vol": vol}, timeout=1800)
+def mix(a: str, b: str, name: str) -> str:
+    """S23: a fake pair of two rooms, /vol/own/<name> = video 1 (and its frames) of pair `a` + video 2 of `b`."""
+    import shutil
+
+    def src(p):
+        return OWN / p if p.startswith("pair") else BENCH / "data" / p
+    out = OWN / name
+    if out.exists():
+        shutil.rmtree(out)
+    out.mkdir(parents=True)
+    for v, p in ((1, a), (2, b)):
+        d = src(p)
+        videos = sorted(x for x in d.iterdir() if x.suffix.lower() in (".mp4", ".mov"))
+        shutil.copy(videos[v - 1], out / f"original_video{v}{videos[v - 1].suffix.lower()}")
+        if (d / f"video{v}_frames").exists():
+            shutil.copytree(d / f"video{v}_frames", out / f"video{v}_frames")
+    vol.commit()
+    return name
+
+
+@app.local_entrypoint()
+def mixed(pairs: str, stride: int = 10) -> None:
+    """S23: comma-separated a:b items; reconstruct video 1 of a with video 2 of b as own/mix_<a>__<b>."""
+    names = [f"mix_{a}__{b}" for a, b in (x.split(":") for x in pairs.split(","))]
+    list(mix.starmap([(*x.split(":"), n) for x, n in zip(pairs.split(","), names, strict=True)]))
+    for r in reconstruct.starmap([(str(OWN / n), n, stride) for n in names]):
         print(r)
 
 
