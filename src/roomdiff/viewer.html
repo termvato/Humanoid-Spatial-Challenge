@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Room changes 3D</title>
+<style>
+:root {
+  --bg: #111316; --panel: #1a1d21; --line: #2c3036; --text: #e8eaed; --muted: #9aa0a6;
+  --removed: #f2555a; --added: #3dd68c; --moved: #f5b43c; --accent: #7aa7ff;
+}
+:root[data-theme="light"] {
+  --bg: #f4f5f7; --panel: #ffffff; --line: #dfe2e6; --text: #1b1d21; --muted: #5f6670;
+  --removed: #d92d34; --added: #128a50; --moved: #b97800; --accent: #2f5fd0;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+  font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
+#app { display: flex; height: 100%; }
+#panel { width: 340px; flex: none; background: var(--panel); border-right: 1px solid var(--line);
+  overflow-y: auto; padding: 16px; }
+#view { position: relative; flex: 1; min-width: 0; }
+canvas { display: block; }
+h1 { font-size: 17px; margin: 0 0 2px; }
+.sub { color: var(--muted); font-size: 12px; margin-bottom: 12px; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+.chip { border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; font-size: 12px; }
+.chip b { font-weight: 600; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin-bottom: 8px; }
+.seg button { background: none; border: 0; color: var(--muted); padding: 6px 12px; cursor: pointer; font: inherit; }
+.seg button.on { background: var(--accent); color: #fff; }
+label.opt { display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: 13px; margin: 4px 0; }
+.card { display: flex; gap: 10px; padding: 8px; border: 1px solid var(--line); border-radius: 10px;
+  margin-top: 8px; cursor: pointer; }
+.card:hover, .card.sel { border-color: var(--accent); }
+.card.low { opacity: .55; }
+.thumbs { display: flex; gap: 3px; flex: none; }
+.thumbs img { width: 56px; height: 56px; object-fit: cover; border-radius: 6px; }
+.thumbs img.was { outline: 2px solid var(--removed); outline-offset: -2px; }
+.thumbs img.now { outline: 2px solid var(--added); outline-offset: -2px; }
+.name { font-weight: 600; }
+.kind { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; font-weight: 700; }
+.kind.removed { color: var(--removed); } .kind.added { color: var(--added); } .kind.moved { color: var(--moved); }
+.meta { color: var(--muted); font-size: 12px; }
+.tag { position: absolute; transform: translate(-50%, -100%); pointer-events: none; white-space: nowrap;
+  font-size: 12px; padding: 2px 7px; border-radius: 6px; background: rgba(0,0,0,.72); color: #fff;
+  border-left: 3px solid; }
+.tag.low { opacity: .5; }
+#help { position: absolute; right: 12px; bottom: 10px; color: var(--muted); font-size: 12px; }
+details { margin-top: 14px; } summary { cursor: pointer; color: var(--muted); }
+details img { width: 100%; margin-top: 6px; border-radius: 6px; image-rendering: pixelated; }
+.legend { display: flex; gap: 12px; font-size: 12px; color: var(--muted); margin: 6px 0 10px; }
+.legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 2px;
+  margin-right: 5px; vertical-align: -1px; background: var(--c); }
+@media (max-width: 760px) {
+  #app { flex-direction: column-reverse; }
+  #panel { width: 100%; height: 45%; border-right: 0; border-top: 1px solid var(--line); }
+}
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="app">
+  <aside id="panel">
+    <h1 id="title"></h1>
+    <div class="sub" id="subtitle"></div>
+    <div class="chips" id="chips"></div>
+    <div class="seg" id="visit">
+      <button data-v="before">Before</button><button data-v="after" class="on">After</button><button data-v="both">Both</button>
+    </div>
+    <div class="legend">
+      <span style="--c: var(--removed)">was here</span><span style="--c: var(--added)">is here now</span><span style="--c: var(--moved)">moved</span>
+    </div>
+    <label class="opt"><input type="checkbox" id="low"> show low-confidence changes</label>
+    <label class="opt">point size <input type="range" id="size" min="1" max="8" value="3"></label>
+    <div id="list"></div>
+    <details id="mapbox"><summary>Robot map (after visit, changes and suggested viewpoints)</summary><img id="map" alt="robot occupancy map"></details>
+  </aside>
+  <main id="view"><div id="help">drag: rotate, right-drag: pan, scroll: zoom, click a change to fly to it</div></main>
+</div>
+<script id="data" type="application/json">/*DATA*/</script>
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+const D = JSON.parse(document.getElementById("data").textContent);
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const COL = { removed: css("--removed"), added: css("--added"), moved: css("--moved") };
+
+const view = document.getElementById("view");
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+view.prepend(renderer.domElement);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(css("--bg"));
+const camera = new THREE.PerspectiveCamera(55, 1, 0.02, 100);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+
+function bytes(b64) {
+  const s = atob(b64), u = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i);
+  return u;
+}
+const LIN = new Float32Array(256).map((_, i) => { const c = i / 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; });
+const pointMat = new THREE.PointsMaterial({ size: 0.012, vertexColors: true });
+function cloud(c) {
+  const xyz = new Int16Array(bytes(c.xyz).buffer), rgb = bytes(c.rgb);
+  const pos = new Float32Array(xyz.length), col = new Float32Array(xyz.length);
+  for (let i = 0; i < xyz.length; i++) { pos[i] = xyz[i] / 1000; col[i] = LIN[rgb[i]]; }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  g.setAttribute("color", new THREE.BufferAttribute(col, 3));
+  g.computeBoundingBox();
+  return new THREE.Points(g, pointMat);
+}
+const clouds = { before: cloud(D.points.before), after: cloud(D.points.after) };
+Object.values(clouds).forEach((p) => scene.add(p));
+
+// map frame (x, y, height) -> three (x, height, -y)
+const v3 = (xy, h) => new THREE.Vector3(xy[0], h, -xy[1]);
+function boxMesh(b, color) {
+  const h = b.top - b.bottom, g = new THREE.BoxGeometry(b.size[0], h, b.size[1]);
+  const grp = new THREE.Group();
+  grp.add(new THREE.LineSegments(new THREE.EdgesGeometry(g), new THREE.LineBasicMaterial({ color })));
+  grp.add(new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.14, depthWrite: false })));
+  grp.position.copy(v3(b.centre, (b.top + b.bottom) / 2));
+  return grp;
+}
+function arc(a, b, color) {
+  const h = Math.max(a.top, b.top) + 0.05, p0 = v3(a.centre, h), p2 = v3(b.centre, h);
+  const p1 = p0.clone().add(p2).multiplyScalar(0.5); p1.y += 0.25 * p0.distanceTo(p2) + 0.1;
+  const curve = new THREE.QuadraticBezierCurve3(p0, p1, p2);
+  const mat = new THREE.MeshBasicMaterial({ color });
+  const grp = new THREE.Group();
+  grp.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 40, 0.01, 6), mat));
+  const cone = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.1, 12), mat);
+  cone.position.copy(p2);
+  cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), curve.getTangent(1));
+  grp.add(cone);
+  return grp;
+}
+
+const items = D.changes.map((c) => {
+  const grp = new THREE.Group();
+  if (c.before) grp.add(boxMesh(c.before, c.kind === "moved" ? COL.removed : COL.removed));
+  if (c.after) grp.add(boxMesh(c.after, COL.added));
+  if (c.kind === "moved") grp.add(arc(c.before, c.after, COL.moved));
+  scene.add(grp);
+  const where = c.after || c.before;
+  const tag = document.createElement("div");
+  tag.className = "tag" + (c.confident ? "" : " low");
+  tag.style.borderLeftColor = COL[c.kind];
+  tag.textContent = `#${c.id} ${c.label || "unnamed"}`;
+  view.appendChild(tag);
+  return { c, grp, tag, anchor: v3(where.centre, where.top + 0.04) };
+});
+
+// fit camera
+const bb = new THREE.Box3().union(clouds.before.geometry.boundingBox).union(clouds.after.geometry.boundingBox);
+const ctr = bb.getCenter(new THREE.Vector3()), size = bb.getSize(new THREE.Vector3()).length();
+controls.target.copy(ctr).setY(0.4);
+camera.position.copy(ctr).add(new THREE.Vector3(0.35, 0.9, 0.55).multiplyScalar(size * 0.75));
+const grid = new THREE.GridHelper(Math.ceil(size), Math.ceil(size) * 2, css("--line"), css("--line"));
+grid.position.set(ctr.x, 0, ctr.z);
+scene.add(grid);
+
+// panel
+document.getElementById("title").textContent = D.title;
+document.getElementById("subtitle").textContent = D.subtitle;
+const conf = D.changes.filter((c) => c.confident);
+document.getElementById("chips").innerHTML = ["moved", "added", "removed"]
+  .map((k) => `<span class="chip"><b style="color:${COL[k]}">${conf.filter((c) => c.kind === k).length}</b> ${k}</span>`).join("")
+  + `<span class="chip">${D.changes.length - conf.length} low-confidence</span>`;
+if (D.map) document.getElementById("map").src = D.map; else document.getElementById("mapbox").remove();
+const fmt = (b) => `${b.size[0].toFixed(2)} x ${b.size[1].toFixed(2)} m, ${b.bottom.toFixed(2)}-${b.top.toFixed(2)} m high`;
+const list = document.getElementById("list");
+let selected = null;
+for (const it of items) {
+  const c = it.c, el = document.createElement("div");
+  el.className = "card" + (c.confident ? "" : " low");
+  const th = (c.thumbs || []).map((t) => `<img class="${t.side}" src="${t.src}" alt="${t.side === "was" ? "before" : "after"} view">`).join("");
+  const detail = c.kind === "moved" ? `moved ${c.distance.toFixed(2)} m; ${fmt(c.after)}` : fmt(c.after || c.before);
+  el.innerHTML = `<div class="thumbs">${th}</div><div><div class="kind ${c.kind}">${c.kind}${c.confident ? "" : " (low confidence)"}</div>`
+    + `<div class="name">#${c.id} ${c.label || "unnamed region"}</div><div class="meta">${detail}</div></div>`;
+  el.onclick = () => focus(it, el);
+  it.card = el;
+  list.appendChild(el);
+}
+function focus(it, el) {
+  if (selected) selected.classList.remove("sel");
+  selected = el; el.classList.add("sel");
+  const b = it.c.after || it.c.before, t = v3(b.centre, (b.top + b.bottom) / 2);
+  const from = camera.position.clone(), to = t.clone().add(camera.position.clone().sub(controls.target).setLength(1.6));
+  const t0 = controls.target.clone(), start = performance.now();
+  (function step(now) {
+    const k = Math.min(1, (now - start) / 600), e = k * k * (3 - 2 * k);
+    camera.position.lerpVectors(from, to, e); controls.target.lerpVectors(t0, t, e);
+    if (k < 1) requestAnimationFrame(step);
+  })(start);
+}
+function applyLow() {
+  const show = document.getElementById("low").checked;
+  for (const it of items) {
+    const vis = it.c.confident || show;
+    it.grp.visible = vis; it.tag.hidden = !vis; it.card.style.display = vis ? "" : "none";
+  }
+}
+document.getElementById("low").onchange = applyLow;
+applyLow();
+document.getElementById("size").oninput = (e) => { pointMat.size = 0.004 * e.target.value; };
+for (const b of document.querySelectorAll("#visit button")) {
+  b.onclick = () => {
+    document.querySelectorAll("#visit button").forEach((x) => x.classList.toggle("on", x === b));
+    clouds.before.visible = b.dataset.v !== "after"; clouds.after.visible = b.dataset.v !== "before";
+  };
+}
+clouds.before.visible = false;
+
+function resize() {
+  const w = view.clientWidth, h = view.clientHeight;
+  renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix();
+}
+addEventListener("resize", resize); resize();
+const tmp = new THREE.Vector3();
+renderer.setAnimationLoop(() => {
+  controls.update();
+  renderer.render(scene, camera);
+  const w = view.clientWidth, h = view.clientHeight;
+  for (const it of items) {
+    if (!it.grp.visible) continue;
+    tmp.copy(it.anchor).project(camera);
+    const off = tmp.z > 1 || Math.abs(tmp.x) > 1.1 || Math.abs(tmp.y) > 1.1;
+    it.tag.style.display = off ? "none" : "";
+    it.tag.style.left = `${(tmp.x + 1) / 2 * w}px`; it.tag.style.top = `${(1 - tmp.y) / 2 * h}px`;
+  }
+});
+</script>
+</body>
+</html>

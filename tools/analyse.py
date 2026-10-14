@@ -13,6 +13,7 @@ Writes:
   before|after.{pgm,yaml}, look_mask.{pgm,yaml}   ROS map_server maps
   viewpoints.json  where to stand to look at each unobserved region (x, y, yaw)
   map.png          after map with changes and viewpoints
+  points.npz       coloured point cloud of each visit in the level frame, for tools/view3d.py
   result.json      settings, counts, and the world -> map transform
 """
 
@@ -40,6 +41,7 @@ from roomdiff.grid2d import (
 from roomdiff.label import best_views, crop, other_view
 from roomdiff.pipeline import level, run, run_lidar
 from roomdiff.report import Change, changes, to_json
+from roomdiff.scene3d import clouds
 from roomdiff.viewpoints import Viewpoint, drop_unviewable, suggest
 
 PX = 4  # map.png pixels per cell
@@ -160,6 +162,7 @@ def main() -> None:
         tiles += [np.zeros_like(tiles[0])] * (-len(tiles) % 6)
         cv2.imwrite(str(args.out / "changes.jpg"), np.vstack([np.hstack(tiles[j:j + 6]) for j in range(0, len(tiles), 6)]))
         write_crops(args.out / "crops", chs, views, pair, cm)
+    np.savez_compressed(args.out / "points.npz", **clouds(F, T, scale))
     save_ros(maps.before, args.out / "before")
     save_ros(maps.after, args.out / "after")
     save_change_mask(maps.change, args.out / "look_mask", LOOK)
