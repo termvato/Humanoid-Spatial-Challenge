@@ -3,10 +3,9 @@
 Reads <result>/crops/<change id>_<blob id>_<k>.jpg (written by tools/analyse.py) and asks once per
 change, with the crops of its largest blob on each side (S19), and writes the name into changes.json
 ("label", raw "answer") plus labels.json with the raw answers. An answer of "none" or a structure
-(wall, floor, door frame, ...) gets label null and "object": false, and the change is not confident. Each blob of a named change is also shown next to the
-same 3D spot seen from the closest camera in the other video, asking whether the named object is still
-there (S21; "no" = changed), on up to 3 own views; the majority is the blob's "changed" (S20, a tie
-counts as changed). A change
+(wall, floor, door frame, ...) gets label null and "object": false, and the change is not confident. Each blob is also shown next to the same 3D spot seen
+from the closest camera in the other video and judged changed (yes / no), on up to 3 own views; the
+majority is the blob's "changed" (S20, a tie counts as changed). A change
 the VLM judges unchanged on every blob is marked "confident": false: listed last, not deleted
 (S17: as a score it raised benchmark AP; as a filter it lost real changes, S16).
 
@@ -22,7 +21,7 @@ from pathlib import Path
 
 import modal
 
-from roomdiff.label import PROMPT, STILL_THERE, gone, majority, parse
+from roomdiff.label import COMPARE, PROMPT, changed, majority, parse
 
 
 def main() -> None:
@@ -56,16 +55,14 @@ def main() -> None:
     named = vlm.ask.remote([[p.read_bytes() for p in ps] for ps in asks if ps], PROMPT)
     it = iter(named)
     answers = {c["id"]: (next(it) if ps else "") for c, ps in zip(chs, asks, strict=True)}
-    names = {c["id"]: parse(answers[c["id"]]) for c in chs}
-    # S21: only named changes get the before/after question, own view first, naming the object
-    pairs = [(k, j) for k in sorted(groups) if names[k[0]] for j in sorted(other[k])]
-    imgs = [[groups[k][j], other[k][j]] for k, j in pairs]
-    verdicts = vlm.ask.remote([[p.read_bytes() for p in im] for im in imgs],
-                              [STILL_THERE.format(name=names[k[0]]) for k, _ in pairs])
+    pairs = [(k, j) for k in sorted(groups) for j in sorted(other[k])]
+    # always first visit first: a removed blob's own crop is from visit 1, an added blob's from visit 2
+    imgs = [[groups[k][j], other[k][j]] if kinds[k] == "removed" else [other[k][j], groups[k][j]] for k, j in pairs]
+    verdicts = vlm.ask.remote([[p.read_bytes() for p in im] for im in imgs], COMPARE)
     votes: dict[tuple[int, int], list] = defaultdict(list)
     for (k, _), a in zip(pairs, verdicts, strict=True):
         votes[k].append(a)
-    per_blob = {k: {"compare": v, "changed": majority([gone(a) for a in v])} for k, v in votes.items()}
+    per_blob = {k: {"compare": v, "changed": majority([changed(a) for a in v])} for k, v in votes.items()}
     for c in chs:
         c["answer"] = answers[c["id"]]
         c["label"] = parse(c["answer"])

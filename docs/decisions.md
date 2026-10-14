@@ -90,3 +90,8 @@ Evidence: docs/spikes.md S5 + S9.
 - Benchmark: current carving slightly ahead (tuning 38.1 vs 37.6, held-out 23.1 vs 20.9, 13 objects).
 - The deliverable is phone video of real rooms, so tools/analyse.py defaults to fp+slant (--footprint --slant on; --plain-carving to switch off). tools/bench_predict.py keeps the current carving. Both numbers are reported.
 - User: "test both and decide".
+
+## D17. Stop VLM tuning; S20 majority verdict stays; finish the core (2026-10-14, decided by user)
+- S19-S21 showed the 7B VLM's yes/no flips one item in 9 true changes whatever the wording: tuning on 2 rooms is noise. User: "We aren't going to improve VLMs."
+- Kept: S18 merging, S19 views and names, S20 majority verdict (the white shoe in pair02 is listed as low confidence, not deleted). Final own-pair runs: outputs/s20.
+- Remaining work, in order: 3D viewer per pair (the brief's "visualize in 3D"), a local web page to upload two videos and run, a check that refuses two videos of different rooms, README and design note.

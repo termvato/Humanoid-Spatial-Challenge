@@ -24,10 +24,6 @@ NONE = {"none", "nothing", "no object", "n/a"}
 STRUCTURE = ("wall", "floor", "ceiling", "door frame", "doorframe", "door", "baseboard", "skirting board",
              "shadow", "reflection", "window", "door handle", "door knob", "doorknob", "light switch",
              "outlet", "socket", "tile", "tiles", "staircase", "stairs", "corner", "edge")
-STILL_THERE = (  # S21: naming the object; "no" = changed
-    "The red box in image 1 contains a {name}. Image 2 shows the same place at another time. "
-    "Is the {name} inside the red box in image 2? Answer yes or no."
-)
 COMPARE = (  # S16: a one-word "changed / same" version answered "same" for most real changes
     "Look at the region inside the red box in image 1 and in image 2 (same place, two different times). "
     "Is there an object inside the box in one image that is missing from the other image? Answer yes or no."
@@ -122,12 +118,6 @@ def changed(answer: str) -> bool | None:
     """COMPARE answer -> True (changed), False (same), None (unclear)."""
     a = answer.strip().lower()
     return True if a.startswith("yes") else False if a.startswith("no") else None
-
-
-def gone(answer: str) -> bool | None:
-    """STILL_THERE answer -> True (gone: changed), False (still there), None (unclear)."""
-    v = changed(answer)
-    return None if v is None else not v
 
 
 def majority(votes: list[bool | None]) -> bool | None:

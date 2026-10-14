@@ -1,6 +1,6 @@
 import numpy as np
 
-from roomdiff.label import best_views, changed, closest_poses, crop, gone, majority, parse
+from roomdiff.label import best_views, changed, closest_poses, crop, majority, parse
 
 
 def test_parse():
@@ -62,6 +62,3 @@ def test_majority():
     assert majority([True, False]) is True  # tie counts as changed
     assert majority([None, True]) is True and majority([None]) is None and majority([]) is None
 
-
-def test_gone():
-    assert gone("No.") is True and gone("yes") is False and gone("unclear") is None
