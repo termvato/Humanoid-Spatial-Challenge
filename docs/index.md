@@ -2,7 +2,7 @@
 
 Start here. Every other doc is linked from this page. Update the status board at the end of each work unit.
 
-## Status board (2026-10-14)
+## Status board (2026-10-15)
 
 | Area | State | Next action | Owner |
 |---|---|---|---|
@@ -10,7 +10,7 @@ Start here. Every other doc is linked from this page. Update the status board at
 | End to end (`roomdiff run`) | **works**: two videos -> viewer.html + summary.json; local GPU or `--modal`; pair01 via the new path reproduces s20 to 1 mm | local smoke test on the 8 GB laptop | Claude |
 | Public page | **live**: https://termvato--roomdiff-app-web.us-east.modal.run, 20 runs/day; pair02 run and a refused two-room pair tested | take down after hiring | user |
 | Room check (S22, S23) | refuses image score < 0.45, warns 3D overlap < 0.40 | | done |
-| 3D viewer | **works**: examples/pair01_bedroom.html, pair02_corridor.html | | done |
+| 3D viewer | **works**: examples/pair01_bedroom.html, pair02_corridor.html (from the final runs, outputs/e2e); moves drawn as red-to-green arrows; README demo GIF | | done |
 | Own rooms (S18-S20, final) | pair01 5/6, 1 confident false alarm; pair02 4/4 (3 confident), 2 confident false alarms | | done |
 | Benchmark (S9, S17) | held-out 23.1 (typed 21.4) vs SceneDiff 32.0 (typed 15.8); 5 pairs | | done |
 | VLM verdict | noisy (S19-S21); tuning stopped (D17) | | done |

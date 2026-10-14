@@ -74,7 +74,7 @@ details img { width: 100%; margin-top: 6px; border-radius: 6px; image-rendering:
       <button data-v="before">Before</button><button data-v="after" class="on">After</button><button data-v="both">Both</button>
     </div>
     <div class="legend">
-      <span style="--c: var(--removed)">was here</span><span style="--c: var(--added)">is here now</span><span style="--c: var(--moved)">moved</span>
+      <span style="--c: var(--removed)">was here</span><span style="--c: var(--added)">is here now</span><span style="--c: var(--moved)">moved (arrow)</span>
     </div>
     <label class="opt"><input type="checkbox" id="low"> show low-confidence changes</label>
     <label class="opt">point size <input type="range" id="size" min="1" max="8" value="3"></label>
@@ -132,25 +132,44 @@ function boxMesh(b, color) {
   grp.position.copy(v3(b.centre, (b.top + b.bottom) / 2));
   return grp;
 }
-function arc(a, b, color) {
-  const h = Math.max(a.top, b.top) + 0.05, p0 = v3(a.centre, h), p2 = v3(b.centre, h);
-  const p1 = p0.clone().add(p2).multiplyScalar(0.5); p1.y += 0.25 * p0.distanceTo(p2) + 0.1;
+const beads = [];
+function arc(a, b) {
+  // old place -> new place: red dot, arc shading red to green, green head on the new box, a bead running along it
+  const h0 = a.top + 0.05, h1 = b.top + 0.05, p0 = v3(a.centre, h0), p2 = v3(b.centre, h1);
+  const p1 = p0.clone().add(p2).multiplyScalar(0.5); p1.y = Math.max(h0, h1) + 0.15 * p0.distanceTo(p2) + 0.05;
   const curve = new THREE.QuadraticBezierCurve3(p0, p1, p2);
-  const mat = new THREE.MeshBasicMaterial({ color });
+  const opts = { depthTest: false, transparent: true };  // seen through walls
+  const red = new THREE.Color(COL.removed), green = new THREE.Color(COL.added);
+  const head = 0.22, end = 1 - head / curve.getLength();
+  const body = new THREE.QuadraticBezierCurve3(p0, p1, p2);
+  body.getPoint = (t, out) => curve.getPoint(t * end, out);
+  const seg = 48, rad = 8, tube = new THREE.TubeGeometry(body, seg, 0.02, rad);
+  const col = new Float32Array(tube.attributes.position.count * 3), c = new THREE.Color();
+  for (let i = 0; i < tube.attributes.position.count; i++) {
+    c.lerpColors(red, green, Math.floor(i / (rad + 1)) / seg).toArray(col, i * 3);
+  }
+  tube.setAttribute("color", new THREE.BufferAttribute(col, 3));
   const grp = new THREE.Group();
-  grp.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 40, 0.01, 6), mat));
-  const cone = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.1, 12), mat);
-  cone.position.copy(p2);
+  grp.add(new THREE.Mesh(tube, new THREE.MeshBasicMaterial({ vertexColors: true, ...opts })));
+  const cone = new THREE.Mesh(new THREE.ConeGeometry(0.075, head, 16), new THREE.MeshBasicMaterial({ color: green, ...opts }));
+  cone.position.copy(curve.getPoint(end)).lerp(p2, 0.5);
   cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), curve.getTangent(1));
   grp.add(cone);
+  const dot = new THREE.Mesh(new THREE.SphereGeometry(0.03, 16, 12), new THREE.MeshBasicMaterial({ color: red, ...opts }));
+  dot.position.copy(p0);
+  grp.add(dot);
+  const bead = new THREE.Mesh(new THREE.SphereGeometry(0.028, 12, 8), new THREE.MeshBasicMaterial({ color: 0xffffff, ...opts }));
+  grp.add(bead);
+  beads.push({ bead, curve, end });
+  grp.traverse((o) => { o.renderOrder = 10; });
   return grp;
 }
 
 const items = D.changes.map((c) => {
   const grp = new THREE.Group();
-  if (c.before) grp.add(boxMesh(c.before, c.kind === "moved" ? COL.removed : COL.removed));
+  if (c.before) grp.add(boxMesh(c.before, COL.removed));
   if (c.after) grp.add(boxMesh(c.after, COL.added));
-  if (c.kind === "moved") grp.add(arc(c.before, c.after, COL.moved));
+  if (c.kind === "moved") grp.add(arc(c.before, c.after));
   scene.add(grp);
   const where = c.after || c.before;
   const tag = document.createElement("div");
@@ -195,8 +214,10 @@ for (const it of items) {
 function focus(it, el) {
   if (selected) selected.classList.remove("sel");
   selected = el; el.classList.add("sel");
-  const b = it.c.after || it.c.before, t = v3(b.centre, (b.top + b.bottom) / 2);
-  const from = camera.position.clone(), to = t.clone().add(camera.position.clone().sub(controls.target).setLength(1.6));
+  const b = it.c.after || it.c.before, a = it.c.before || b;
+  const t = v3(a.centre, (a.top + a.bottom) / 2).lerp(v3(b.centre, (b.top + b.bottom) / 2), 0.5);  // frames both ends of a move
+  const dist = 1.6 + 1.5 * (it.c.distance || 0);
+  const from = camera.position.clone(), to = t.clone().add(camera.position.clone().sub(controls.target).setLength(dist));
   const t0 = controls.target.clone(), start = performance.now();
   (function step(now) {
     const k = Math.min(1, (now - start) / 600), e = k * k * (3 - 2 * k);
@@ -230,6 +251,8 @@ addEventListener("resize", resize); resize();
 const tmp = new THREE.Vector3();
 renderer.setAnimationLoop(() => {
   controls.update();
+  const t = (performance.now() / 1600) % 1;
+  for (const b of beads) b.curve.getPoint(t * b.end, b.bead.position);
   renderer.render(scene, camera);
   const w = view.clientWidth, h = view.clientHeight;
   for (const it of items) {

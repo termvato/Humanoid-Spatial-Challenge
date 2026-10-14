@@ -2,9 +2,9 @@
 
 Two phone videos of the same room, before and after. `roomdiff` builds **one 3D model from both**, finds what was **moved, added or removed**, **names** each change, and shows it in an interactive **3D viewer**. It also writes robot-ready maps: ROS occupancy grids with a change layer, and suggested places to stand for anything it could not see.
 
-![3D viewer: bedroom pair](docs/img/viewer_pair01.png)
+![3D viewer: bedroom pair](docs/img/demo_pair01.gif)
 
-*pair01 (bedroom). Red: where something was. Green: where it is now. Amber arc: moved. Cards show each change's before and after crops.*
+*pair01 (bedroom). Red: where something was. Green: where it is now. Arrows run from an object's old place (red) to its new place (green). Cards show each change's before and after crops; click one to fly to it.*
 
 ## Try it
 
