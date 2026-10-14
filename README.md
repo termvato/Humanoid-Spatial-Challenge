@@ -27,7 +27,7 @@ uv run roomdiff run before.mp4 after.mp4 --out results/
 ```
 
 - Defaults need about 24 GB of GPU memory. pi3 takes about 16 GB for 120 frames per video, and the VLM about 16 GB afterwards.
-- On a smaller GPU, use `--max-frames 40 --no-labels`. Fewer frames give a coarser map, and the run has no names.
+- On a smaller GPU, cap the frames and skip the names: `--max-frames 15 --no-labels`. Tested on an 8 GB laptop RTX 4070: 7 minutes, but fewer frames find less (pair01: 3 of 6 changes instead of 5).
 - Model weights (pi3, SAM ViT-H, DINOv2, Qwen2.5-VL-7B) download on first use, about 20 GB in total.
 - CPU-only is not practical.
 

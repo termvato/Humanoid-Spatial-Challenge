@@ -91,8 +91,8 @@ def run_pair(video1: Path, video2: Path, out: Path, labels: bool = True, stride:
     write_page(out, title or f"{summary['video1']} -> {summary['video2']}")
     chs = json.loads((out / "changes.json").read_text())
     summary.update(overlap_3d=res.get("overlap_3d"), scale_m_per_unit=res["scale_m_per_unit"],
-                   changes=[{k: c.get(k) for k in ("id", "kind", "label", "confident", "before", "after", "distance")}
-                            for c in chs])
+                   changes=[{k: c.get(k) for k in ("id", "kind", "label", "before", "after", "distance")}
+                            | {"confident": c.get("confident", True)} for c in chs])  # unlabelled: all confident
     if "warning" in res:
         summary["warning"] = res["warning"]
     save()
