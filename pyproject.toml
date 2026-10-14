@@ -7,14 +7,20 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
+    "fastapi>=0.143.0",
     "matplotlib>=3.11.2",
     "modal>=1.6.1",
     "numpy>=2.5.4",
     "open3d>=0.20.0",
     "opencv-python-headless>=5.0.0.93",
     "pycocotools>=2.0.11",
+    "python-multipart>=0.0.32",
     "scipy>=1.18.1",
+    "uvicorn>=0.54.0",
 ]
+
+[project.scripts]
+roomdiff = "roomdiff.cli:main"
 
 [build-system]
 requires = ["uv_build>=0.13.0,<0.14.0"]
@@ -28,13 +34,24 @@ addopts = "-p no:launch_testing -p no:launch_ros -p no:ament_copyright -p no:ame
 [tool.ruff]
 line-length = 110
 
+[tool.uv.sources]
+pi3 = { git = "https://github.com/yyfz/Pi3", rev = "9fa3ddb3f8d53041f8b2738df404f62223bbaa7b" }
+
 [dependency-groups]
 dev = [
+    "httpx>=0.28.1",
     "pytest>=9.1.1",
     "ruff>=0.17.0",
 ]
 gpu = [
+    "accelerate>=1.15.0",
+    "einops>=0.8.2",
+    "huggingface-hub>=0.36.2",
+    "pi3",
+    "pillow>=12.3.0",
+    "qwen-vl-utils==0.0.10",
     "segment-anything>=1.0",
     "torch>=2.14.1",
     "torchvision>=0.29.1",
+    "transformers==4.51.3",
 ]

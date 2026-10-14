@@ -15,6 +15,7 @@ import cv2
 import numpy as np
 
 SAM_CKPT = Path.home() / ".cache" / "roomdiff" / "sam_vit_h.pth"
+SAM_URL = "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth"
 
 
 def iou(a: np.ndarray, b: np.ndarray) -> float:
@@ -60,6 +61,13 @@ class SamRefiner:
     def _load(self) -> None:
         from segment_anything import SamPredictor, sam_model_registry
 
+        if not self.checkpoint.exists():  # 2.6 GB, once
+            import urllib.request
+
+            self.checkpoint.parent.mkdir(parents=True, exist_ok=True)
+            tmp = self.checkpoint.with_suffix(".part")
+            urllib.request.urlretrieve(SAM_URL, tmp)
+            tmp.rename(self.checkpoint)
         sam = sam_model_registry["vit_h"](checkpoint=str(self.checkpoint)).to(self.device)
         self.predictor = SamPredictor(sam)
 

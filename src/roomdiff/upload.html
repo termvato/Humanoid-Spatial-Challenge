@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>What changed in the room?</title>
+<style>
+:root {
+  --bg: #f4f5f7; --card: #ffffff; --line: #dfe2e6; --text: #1b1d21; --muted: #5f6670;
+  --accent: #2f5fd0; --accent-text: #ffffff; --bad: #c62a2f; --bad-bg: #fdecec; --warn: #8a5a00; --warn-bg: #fff4dc;
+  --ok: #128a50;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111316; --card: #1a1d21; --line: #2c3036; --text: #e8eaed; --muted: #9aa0a6;
+    --accent: #7aa7ff; --accent-text: #0b1020; --bad: #ff7b7f; --bad-bg: #3a1c1e; --warn: #f5c060; --warn-bg: #36290f;
+    --ok: #3dd68c;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111316; --card: #1a1d21; --line: #2c3036; --text: #e8eaed; --muted: #9aa0a6;
+  --accent: #7aa7ff; --accent-text: #0b1020; --bad: #ff7b7f; --bad-bg: #3a1c1e; --warn: #f5c060; --warn-bg: #36290f;
+  --ok: #3dd68c;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 980px; margin: 0 auto; padding: 28px 16px 48px; }
+h1 { font-size: 26px; margin: 0 0 4px; }
+.lead { color: var(--muted); margin: 0 0 22px; max-width: 680px; }
+.drops { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.drop { position: relative; background: var(--card); border: 2px dashed var(--line); border-radius: 14px; padding: 16px;
+  min-height: 210px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
+  cursor: pointer; transition: border-color .15s; }
+.drop:hover, .drop.over { border-color: var(--accent); }
+.drop.has { border-style: solid; }
+.drop b { font-size: 16px; }
+.drop small { color: var(--muted); }
+.drop video { width: 100%; max-height: 220px; border-radius: 8px; margin-top: 8px; background: #000; }
+.drop input { display: none; }
+.row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 16px; }
+button.run { background: var(--accent); color: var(--accent-text); border: 0; border-radius: 10px; padding: 11px 26px;
+  font: 600 15px system-ui, sans-serif; cursor: pointer; }
+button.run:disabled { opacity: .45; cursor: default; }
+.muted { color: var(--muted); font-size: 13px; }
+.box { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-top: 18px; }
+.steps { list-style: none; padding: 0; margin: 0; }
+.steps li { padding: 3px 0; color: var(--muted); }
+.steps li.done::before { content: "\2713  "; color: var(--ok); }
+.steps li.now { color: var(--text); font-weight: 600; }
+.steps li.now::before { content: "\25CF  "; color: var(--accent); }
+.banner { border-radius: 10px; padding: 12px 14px; margin-top: 12px; }
+.banner.bad { background: var(--bad-bg); color: var(--bad); }
+.banner.warn { background: var(--warn-bg); color: var(--warn); }
+iframe { width: 100%; height: 78vh; border: 1px solid var(--line); border-radius: 14px; margin-top: 12px; background: var(--card); }
+a { color: var(--accent); }
+.ex a { margin-right: 14px; }
+@media (max-width: 640px) { .drops { grid-template-columns: 1fr; } iframe { height: 70vh; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>What changed in the room?</h1>
+  <p class="lead">Two phone videos of the same room, before and after. The system builds one 3D model from both,
+    finds what was moved, added or removed, names it, and shows it in 3D. Walk slowly, cover the same space in both videos,
+    30 to 60 seconds each.</p>
+  <div class="drops">
+    <label class="drop" id="d1"><input type="file" accept="video/*" id="f1">
+      <b>1. Before video</b><small>drop here or click to choose</small></label>
+    <label class="drop" id="d2"><input type="file" accept="video/*" id="f2">
+      <b>2. After video</b><small>drop here or click to choose</small></label>
+  </div>
+  <div class="row">
+    <button class="run" id="run" disabled>Run</button>
+    <span class="muted" id="hint">Choose both videos to start. Takes about 5 to 10 minutes.</span>
+  </div>
+  <p class="muted" id="note"></p>
+  <p class="muted ex" id="ex"></p>
+  <section class="box" id="prog" hidden>
+    <ul class="steps" id="steps"></ul>
+    <div id="msg"></div>
+  </section>
+  <section id="out" hidden>
+    <div id="warn"></div>
+    <iframe id="frame" title="3D result"></iframe>
+    <p class="muted"><a id="full" target="_blank" rel="noopener">Open the 3D view in its own tab</a> ·
+      <a id="json" target="_blank" rel="noopener">summary.json</a> · <a id="map" target="_blank" rel="noopener">robot map</a></p>
+  </section>
+</main>
+<script>
+const CFG = /*CONFIG*/;
+const $ = (id) => document.getElementById(id);
+if (CFG.note) $("note").textContent = CFG.note;
+if (CFG.examples.length) $("ex").innerHTML = "Finished examples: " + CFG.examples.map((e) => `<a href="examples/${e}" target="_blank" rel="noopener">${e}</a>`).join("");
+const files = {};
+for (const k of ["1", "2"]) {
+  const drop = $("d" + k), input = $("f" + k);
+  const take = (f) => {
+    if (!f) return;
+    if (f.size > CFG.max_mb * 1e6) { alert(`That video is over ${CFG.max_mb} MB.`); return; }
+    files[k] = f;
+    drop.classList.add("has");
+    drop.querySelector("small").textContent = `${f.name} (${(f.size / 1e6).toFixed(0)} MB)`;
+    let v = drop.querySelector("video");
+    if (!v) { v = document.createElement("video"); v.muted = true; v.controls = true; drop.appendChild(v); }
+    v.src = URL.createObjectURL(f);
+    $("run").disabled = !(files["1"] && files["2"]);
+    if (!$("run").disabled) $("hint").textContent = "Ready.";
+  };
+  input.onchange = () => take(input.files[0]);
+  drop.ondragover = (e) => { e.preventDefault(); drop.classList.add("over"); };
+  drop.ondragleave = () => drop.classList.remove("over");
+  drop.ondrop = (e) => { e.preventDefault(); drop.classList.remove("over"); take(e.dataTransfer.files[0]); };
+}
+let stages = [];
+function show(stage, state) {
+  if (stage && stages[stages.length - 1] !== stage) stages.push(stage);
+  $("steps").innerHTML = stages.map((s, i) =>
+    `<li class="${i < stages.length - 1 || state === "done" ? "done" : "now"}">${s}</li>`).join("");
+}
+function banner(el, cls, text) { el.innerHTML = `<div class="banner ${cls}"></div>`; el.firstChild.textContent = text; }
+$("run").onclick = async () => {
+  $("run").disabled = true; $("out").hidden = true; $("prog").hidden = false; $("msg").innerHTML = ""; stages = [];
+  show("uploading videos");
+  const fd = new FormData();
+  fd.append("video1", files["1"]); fd.append("video2", files["2"]);
+  let job;
+  try {
+    const r = await fetch("api/run", { method: "POST", body: fd });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.detail || r.statusText);
+    job = j.job;
+  } catch (e) { banner($("msg"), "bad", "Could not start: " + e.message); $("run").disabled = false; return; }
+  const t0 = Date.now();
+  const timer = setInterval(async () => {
+    let s;
+    try { s = await (await fetch(`api/job/${job}`)).json(); } catch { return; }
+    show(s.stage, s.state);
+    $("hint").textContent = `${Math.round((Date.now() - t0) / 1000)} s`;
+    if (s.state === "done" || s.state === "refused" || s.state === "failed") {
+      clearInterval(timer); $("run").disabled = false;
+      if (s.state === "refused") return banner($("msg"), "bad", s.error);
+      if (s.state === "failed") return banner($("msg"), "bad", "Something went wrong: " + s.error);
+      const base = `r/${job}/`;
+      $("out").hidden = false;
+      $("warn").innerHTML = "";
+      if (s.summary && s.summary.warning) banner($("warn"), "warn", s.summary.warning);
+      $("frame").src = base + "viewer.html"; $("full").href = base + "viewer.html";
+      $("json").href = base + "summary.json"; $("map").href = base + "map.png";
+    }
+  }, 2000);
+};
+</script>
+</body>
+</html>
