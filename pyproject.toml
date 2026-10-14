@@ -36,6 +36,8 @@ line-length = 110
 
 [tool.uv.sources]
 pi3 = { git = "https://github.com/yyfz/Pi3", rev = "9fa3ddb3f8d53041f8b2738df404f62223bbaa7b" }
+torch = { index = "pytorch-cu126" }
+torchvision = { index = "pytorch-cu126" }
 
 [dependency-groups]
 dev = [
@@ -55,3 +57,9 @@ gpu = [
     "torchvision>=0.29.1",
     "transformers==4.51.3",
 ]
+
+# CUDA 12.6 builds of torch run on NVIDIA drivers >= 525 (the PyPI default build needs >= 580).
+[[tool.uv.index]]
+name = "pytorch-cu126"
+url = "https://download.pytorch.org/whl/cu126"
+explicit = true

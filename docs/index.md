@@ -2,22 +2,20 @@
 
 Start here. Every other doc is linked from this page. Update the status board at the end of each work unit.
 
-## Status board (2026-10-12)
+## Status board (2026-10-14)
 
 | Area | State | Next action | Owner |
 |---|---|---|---|
-| Architecture (D11) | **decided**: pi3 -> ICP -> voxel carving -> SAM -> DINOv2 matching; SceneDiff as a second channel | | done |
-| Change type (D12) | **decided**: added / removed first, moved is a bonus | | done |
-| Model choice (S5, S10, S12) | **pi3** beats Pi3X, VGGT, DA3, MapAnything, VGGT-Omega on the benchmark | | done |
-| Benchmark (S9, S17) | with VLM rescoring: tuning 38.1, held-out 23.1 (typed 21.4) vs SceneDiff 32.0 (typed 15.8); 5 pairs, too few | smaller held-out sample later (user: keep costs low) | user |
-| Own rooms (S9e, S11) | pair01 5 of 6 (SceneDiff 3), pair02 4 of 4 + boot unobserved (SceneDiff 3) | | done |
-| Robot maps (`grid2d`, `level`) | **works**: ROS map_server before/after maps, change layer, look mask; boot corner flagged | | done |
-| Suggested viewpoints (`viewpoints`) | **works**: 2.5D line of sight, shared stops; pair02 boot corner seen 99% from one stop, pair01 nothing to check | | done |
-| False alarms (walls, edges, shadow) | VLM before/after check adopted as score (D15). Confident list: pair01 6, pair02 6 false alarms (from 46 / 33), all real changes kept (fp+slant). Size filter and hard VLM filter rejected (S15, S16) | carving choice for own rooms; moved-pair label agreement | Claude |
-| Labels (D13) | Qwen2.5-VL names each change (printer, white shoe, hat, suitcase); some wrong ('floor' for the moved suitcase) | label from the object's own view only; label agreement for moved | Claude |
-| Isaac demo | frozen (D14): demo.mp4 exists, no more work | | done |
-| Isaac diff-drive demo | dropped (D14: the demo is the two videos) | | done |
-| README + design note | not started | last day | Claude |
+| Architecture (D11) | **decided**: pi3 -> ICP -> voxel carving -> SAM -> DINOv2 matching -> VLM names | | done |
+| End to end (`roomdiff run`) | **works**: two videos -> viewer.html + summary.json; local GPU or `--modal`; pair01 via the new path reproduces s20 to 1 mm | local smoke test on the 8 GB laptop | Claude |
+| Public page | **live**: https://termvato--roomdiff-app-web.us-east.modal.run, 20 runs/day; pair02 run and a refused two-room pair tested | take down after hiring | user |
+| Room check (S22, S23) | refuses image score < 0.45, warns 3D overlap < 0.40 | | done |
+| 3D viewer | **works**: examples/pair01_bedroom.html, pair02_corridor.html | | done |
+| Own rooms (S18-S20, final) | pair01 5/6, 1 confident false alarm; pair02 4/4 (3 confident), 2 confident false alarms | | done |
+| Benchmark (S9, S17) | held-out 23.1 (typed 21.4) vs SceneDiff 32.0 (typed 15.8); 5 pairs | | done |
+| VLM verdict | noisy (S19-S21); tuning stopped (D17) | | done |
+| README + design note | written: README.md, docs/design.md | user review; repo URL in README | user |
+| Docker image | not made: docker not installed here, untested images are not shipped | | |
 
 ## Pipeline (as built, D11)
 
@@ -61,6 +59,7 @@ flowchart LR
 | [challenge.md](challenge.md) | the brief, verbatim |
 | [decisions.md](decisions.md) | D1-D12, each with reason; append-only |
 | [spikes.md](spikes.md) | S1-S12 with pre-written rules and results; summary table at the top |
+| [design.md](design.md) | the short design note for reviewers: choices, tradeoffs, honest results |
 | [ideas.md](ideas.md) | ideas not built (Isaac pairs, co-training, 3RScan, mirrors) |
 | [deep-research.md](deep-research.md) | state-of-the-art report with ranked choices, plus later paper checks |
 | `research-notes/` | raw notes behind the deep research |
@@ -69,6 +68,12 @@ flowchart LR
 
 | Path | What |
 |---|---|
+| `src/roomdiff/cli.py`, `run.py` | `roomdiff run / serve / view`: two videos -> everything |
+| `src/roomdiff/recon.py` | pi3 on both videos (no SceneDiff needed), focal from point maps |
+| `src/roomdiff/analyse.py`, `labelling.py`, `vlm.py` | change list, maps, crops; VLM names and verdicts |
+| `src/roomdiff/view3d.py`, `viewer.html` | the 3D viewer page |
+| `src/roomdiff/web.py`, `upload.html`, `remote.py` | upload page; local or Modal job runner |
+| `src/roomdiff/roomcheck.py` | same-room check (S22) |
 | `src/roomdiff/pipeline.py` | the pipeline on one pair: `run` (plain video recon) or `run_lidar` (Stray LiDAR), one change map |
 | `src/roomdiff/frames.py` | one posed-depth container for LiDAR and every model |
 | `src/roomdiff/align.py` | gravity-aware 4-DoF registration of two LiDAR captures; robust ICP between videos |
@@ -87,7 +92,8 @@ flowchart LR
 | `tools/fuse.py` | SceneDiff rescored by 3D support, plus 3D-only objects |
 | `tools/score_recon.py` | S5 model scorer vs ARKit + LiDAR |
 | `tools/show_sd.py`, `tools/show_pair.py`, `tools/plot_s9.py` | pictures: SceneDiff detections, benchmark pairs, results chart |
-| `infra/modal_scenediff.py` | Modal: benchmark, SceneDiff, pi3 reconstruction, evaluator |
+| `infra/modal_app.py` | Modal: whole pipeline on one GPU + the public upload page |
+| `infra/modal_scenediff.py` | Modal: benchmark, SceneDiff, pi3 reconstruction, evaluator, mixed-room pairs |
 | `infra/modal_models.py` | Modal: Pi3X, VGGT, VGGT-Omega, DA3, MapAnything (model comparison) |
 | `spikes/s3_isaac_render.py` | Isaac render benchmark |
 | `third_party/` | SceneDiff clone, 3RScan download script (untracked) |
