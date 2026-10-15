@@ -28,7 +28,8 @@ Two videos of different rooms would still produce a "change list". The run first
 
 - **Our rooms** (phone video, strong lighting change in pair01): pair01 finds 5 of 6 changes (the pen is never detected) with 1 confident false alarm; pair02 detects 4 of 4, 3 confident (the white shoe is judged unchanged by the VLM), 2 confident false alarms. SceneDiff, the ECCV 2026 baseline, found 3 of 6 and 3 of 4.
 - **SceneDiff benchmark** (official evaluator, object-level AP, 5 held-out pairs, 13 objects): ours 23.1 untyped / 21.4 typed vs SceneDiff 32.0 / 15.8. Better at saying *what kind* of change, worse at finding small objects. 5 pairs is too few to rank either.
-- Our rooms were used to develop the false-alarm steps, so they are development data, not a clean test.
+- Two pair01 false alarms are real physical changes the ground truth did not list: the curtain hem lies differently (reported as a 0.78 m move) and a soft bag was ruffled when the pouch was taken out of it. Geometry sees a reshaped soft object as removed + added. They are still counted as false alarms.
+- Our rooms were used to develop the false-alarm steps, so they are development data, not a clean test. The carving and detection steps were also checked on the SceneDiff benchmark's held-out pairs, and rules that only helped our rooms were dropped (S13, S15, S24). The list-cleaning steps (fragment merging, names, the before/after vote: S18-S20) were tested on our two rooms only, so their gains there may not carry over.
 
 ## Tradeoffs we chose
 
@@ -40,4 +41,4 @@ Two videos of different rooms would still produce a "change list". The run first
 
 ## What we tried and dropped
 
-Keyframe selection (S6), grazing-angle cut (S13), minimum object size (S15), VLM as a hard filter (S16), a named-object before/after question (S21), synthetic Isaac Sim training data (I1, D14), a robot demo in Isaac Sim (D14).
+Keyframe selection (S6), grazing-angle cut (S13), minimum object size (S15), VLM as a hard filter (S16), a named-object before/after question (S21), folding pieces into moved objects (S24), synthetic Isaac Sim training data (I1, D14), a robot demo in Isaac Sim (D14).

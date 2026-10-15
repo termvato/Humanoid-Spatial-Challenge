@@ -14,7 +14,8 @@ Start here. Every other doc is linked from this page. Update the status board at
 | Own rooms (S18-S20, final) | pair01 5/6, 1 confident false alarm; pair02 4/4 (3 confident), 2 confident false alarms | | done |
 | Benchmark (S9, S17) | held-out 23.1 (typed 21.4) vs SceneDiff 32.0 (typed 15.8); 5 pairs | | done |
 | VLM verdict | noisy (S19-S21); tuning stopped (D17) | | done |
-| README + design note | written: README.md, docs/design.md | user review; repo URL in README | user |
+| Fold pieces into moved (S24) | not adopted: nothing to fold on 3 rooms; the suitcase grip is 21 cm off | | done |
+| README + design note | written: README.md, docs/design.md, demo GIF; soft-object false alarms explained | repo URL in README, push, submit (planned 2026-10-15) | user |
 | Docker image | not made: docker not installed here, untested images are not shipped | | |
 
 ## Pipeline (as built, D11)

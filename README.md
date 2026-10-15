@@ -106,6 +106,7 @@ A camera ray that passes through a voxel proves that voxel empty. Comparing what
 - Small objects (a pen) can be missed. Some names are wrong (the blue tool is called "black book").
 - The VLM's before/after check is noisy, so low-confidence changes are listed, not hidden.
 - Scale comes from assuming the phone is held 1.5 m above the floor (1.9% off on pair01).
+- Soft objects that change shape (a curtain hem, a ruffled bag) show up as changes; a reshaped curtain is reported as moved.
 - Mirrors create phantom geometry.
 - Offline only: about 6 minutes per pair on an A100.
 
