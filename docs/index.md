@@ -15,7 +15,7 @@ Start here. Every other doc is linked from this page. Update the status board at
 | Benchmark (S9, S17) | held-out 23.1 (typed 21.4) vs SceneDiff 32.0 (typed 15.8); 5 pairs | | done |
 | VLM verdict | noisy (S19-S21); tuning stopped (D17) | | done |
 | Fold pieces into moved (S24) | not adopted: nothing to fold on 3 rooms; the suitcase grip is 21 cm off | | done |
-| README + design note | written: README.md, docs/design.md, demo GIF; soft-object false alarms explained | repo URL in README, push, submit (planned 2026-10-15) | user |
+| README + design note | written; repo public at github.com/termvato/Humanoid-Spatial-Challenge; example input videos (720p) added, pair01 copies rerun: 5/6, 3 confident false alarms (outputs/e2e/pair01_small) | submit | user |
 | Docker image | not made: docker not installed here, untested images are not shipped | | |
 
 ## Pipeline (as built, D11)

@@ -10,6 +10,7 @@ Two phone videos of the same room, before and after. `roomdiff` builds **one 3D 
 
 - **No setup:** open the hosted page **https://termvato--roomdiff-app-web.us-east.modal.run**, drop a before and an after video, and press Run. It takes 5 to 10 minutes on a cloud GPU. It is capped at 20 runs a day, and videos are deleted after the run.
 - **Finished examples:** `examples/pair01_bedroom.html` and `examples/pair02_corridor.html` are self-contained pages. Download one and open it in a browser, or open it from the hosted page.
+- **Example inputs:** `examples/videos/` holds both pairs (`pair01_before.mp4`, `pair01_after.mp4`, `pair02_...`), ready to drop into the page or pass to `roomdiff run`. They are 720p copies of the phone videos, without audio or metadata, to keep the repo small. The published results come from the full-resolution originals. A run on the pair01 copies also found 5 of 6 changes, but with 3 confident false alarms instead of 1, and it reported the hat as moved instead of removed.
 
 ## Run it yourself
 
