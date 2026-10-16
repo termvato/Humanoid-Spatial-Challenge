@@ -20,7 +20,7 @@ Each spike has a pass/fail rule written BEFORE running it, so the result decides
 | S16 | Does a VLM before/after check cut false alarms? Each change's best crop next to the same 3D spot from the closest camera in the other video; Qwen2.5-VL-7B answers 'changed' or 'same' | Drop a change when every one of its blobs is judged 'same'. Own pairs (current and fp+slant carving), then tuning pairs | Adopt if own pairs lose no true change AND false alarms drop >= 30%; then tuning AP >= 33.3 and held-out >= 17.0. Otherwise keep the verdict as information only | ~$0.5 Modal |
 | S17 | Does the VLM verdict work as a score instead of a filter? (S16 filter halved objects but lost real ones) | Blobs the VLM answers 'no' keep their masks but their score (voxel count) is multiplied by 0.1 / 0.3. Current and fp+slant carving; cached verdicts | Adopt the best if tuning AP >= 34.3 (no loss); then held-out >= 18.0. The user-facing list is then cut by score, chosen on own pairs | pennies |
 | S18 | Does merging fragments give one entry per object? (pair01 fp+slant confident list: suitcase 3 entries, hat 2) | Merge changes of the same kind whose 3D boxes (map frame, with height) are within 10 cm; moved: both ends. Own pairs, fp+slant, before labelling | Adopt if every found true change on pair01 / pair02 is exactly one confident entry, no true change lost, and no merged entry covers two different true changes. Report-level only, the benchmark export is untouched | laptop |
-| S19 | Do better views fix the labels? (suitcase 'floor': one of its 3 crops was a blurry floor close-up, one cut by the image edge) | Crops ranked by mask area x sharpness, masks touching the image border dropped; one VLM question per change with all its blobs' crops; answers naming structure (wall, floor, ceiling, door frame, baseboard, shadow, door handle, ...) count as not an object (confident false) | Adopt if: of the 9 found true changes, >= 7 get a name the user accepts (now 5: pouch 'black wallet', hat, printer, cap 'hat on table', shoe; misses: suitcase 'floor', blanket 'white pillow', blue tool 'blue and black object', box); no true change leaves the confident list; confident false alarms not above now (6, 6) | ~$0.1 Modal |
+| S19 | Do better views fix the labels? (suitcase 'floor': one of its 3 crops was a blurry floor close-up, one cut by the image edge) | Crops ranked by mask area x sharpness, masks touching the image border dropped; one VLM question per change with all its blobs' crops; answers naming structure (wall, floor, ceiling, door frame, baseboard, shadow, door handle, ...) count as not an object (confident false) | Adopt if: of the 9 found true changes, >= 7 get a name I accept (now 5: pouch 'black wallet', hat, printer, cap 'hat on table', shoe; misses: suitcase 'floor', blanket 'white pillow', blue tool 'blue and black object', box); no true change leaves the confident list; confident false alarms not above now (6, 6) | ~$0.1 Modal |
 | S20 | Is a majority vote over several views a stable before/after verdict? (S19: the white shoe's verdict flipped yes -> no when its own crop's box moved a few pixels; other crop byte-identical, greedy decoding) | Per blob, the before/after question on up to 3 own views, each with its own closest camera in the other video; changed = majority of the answers (a tie counts as changed). S18 + S19 otherwise unchanged | Adopt if every found true change on both own pairs is confident AND confident false alarms <= 6 per pair (the S17 level). Then S19 is judged again on this run. Benchmark rescoring keeps one view (S17) unless retested | ~$0.1 Modal |
 | S21 | Does a question naming the object fix the verdict? (S20: the white shoe still voted no/yes/no; the after box holds the black boot, so 'is an object missing' is answered no) | Same 3 view pairs as S20, own view first: 'The red box in image 1 contains a {name}. Image 2 shows the same place at another time. Is the {name} inside the red box in image 2?' 'no' = changed; majority as S20. {name} is the S19 label; changes without a name stay low | Same as S20: every found true change on both own pairs confident AND confident false alarms <= 6 per pair | ~$0.1 Modal |
 | S22 | Can we refuse two videos of different rooms before the expensive 3D step? | DINOv2 ViT-S/14 CLS per frame (stride 2 of the recon frames); score = median over video-2 frames of the best cosine to any video-1 frame, both directions, the lower kept. Same room: 20 benchmark pi3 pairs + pair01 + pair02. Different: video 1 of one pair with video 2 of a pair of another room category (bedroom / kitchen / living room / ...), plus pair01 x pair02 both ways (same flat, same light, different rooms). Same-category mixes left out (some are the same room) | Adopt if the lowest same-room score is above the highest different-room score by >= 0.05; threshold at the midpoint. Otherwise add a geometric check after pi3 (ICP overlap), S23 | laptop |
@@ -94,7 +94,7 @@ Component choices inside the 3D pipeline (tuning pairs, each kept only if it rai
 - Baseline must run at SceneDiff's default config (no SAM shortcuts) to be a fair comparison.
 
 ### S2: borderline FAIL on the written rule, pipeline viable (2026-10-11)
-- pair01 (user's room, iPhone, Stray Scanner; strong light change warm -> daylight). SceneDiff default config, resample 90 (14 frames per video, benchmark-matched; 40 frames OOMed at stage 7).
+- pair01 (my room, iPhone, Stray Scanner; strong light change warm -> daylight). SceneDiff default config, resample 90 (14 frames per video, benchmark-matched; 40 frames OOMed at stage 7).
 - Rule was ">= 2 of 3 changes"; scaled to 6 changes = >= 4. Found 3, of which 2 fully correct:
 
 | Change | Result |
@@ -106,7 +106,7 @@ Component choices inside the 3D pipeline (tuning pairs, each kept only if it rai
 | pen, moved (floor) | missed. A few pixels at 518 px input |
 | blanket, removed (on suitcase) | missed. Visible in both videos (v1 frames 1-2, v2 frames 6-7): a genuine miss |
 
-- False alarms: 4. P2 = the user's finger over the lens in before frames 7-9 (capture artifact); P0, P3, P6 = wall and curtain edges (light change).
+- False alarms: 4. P2 = my finger over the lens in before frames 7-9 (capture artifact); P0, P3, P6 = wall and curtain edges (light change).
 - Fail-branch diagnosis (as the rule required): reconstruction and alignment are fine (suitcase matched across sessions). Failures are coverage (hat), object size vs input resolution (pen), appearance under a light change (blanket), and capture hygiene (finger).
 - Implications: (1) uniform 1-in-90 sampling wastes frames; choose keyframes by sharpness and coverage. (2) The hat is the poster case for an explicit "unobserved" output. (3) The verifier (head A) would target the edge and finger false alarms. (4) Capture guide: keep fingers off the lens; pause on each changed area.
 - Artifacts: outputs/s2/pair01.png, outputs/s2/sampled_frames.jpg, outputs/s2/photos_grid.jpg. Cost ~$0.70 including two failed runs.
@@ -185,7 +185,7 @@ Same frames for every model (every 10th frame, both videos in one call), same lo
 | VGGT /60 (conf 10% / 40%) | 4.6 / 7.0 | |
 | DA3 /60 (conf 10% / 40%) | 2.8 / 2.3 | |
 
-- Geometry winner (Pi3X) and change-detection winner (pi3) differ. Open for the user (D11).
+- Geometry winner (Pi3X) and change-detection winner (pi3) differ. Open; decided in D11.
 - Failure modes seen (bedroom_2_bedroom_3): carpet-texture noise blobs, wall corners, fragmented masks; SAM fixes mask quality.
 - SceneDiff baseline on the same 15 pairs: running (needed for a like-for-like comparison).
 
@@ -246,7 +246,7 @@ Same frames for every model (every 10th frame, both videos in one call), same lo
 - The mirror produced phantom changes in the LiDAR map (depth into the reflection), only edge noise in the plain-video map.
 - Plain video beat LiDAR on small objects here (1.1 cm vs 5 cm voxels).
 - Artifacts: outputs/s9/pair02_d80/ (objects.jpg, boot_before.jpg), outputs/s7_pair02/, outputs/sd/own/pair02/objects.jpg.
-- User check of the extra detections: box moved a little while taking the printer out (real, acceptable); #2 likely the user's shadow; bench clothes and the LiDAR door (B3) unchanged; boot was seen in the before video only (confirms unobserved).
+- My check of the extra detections: box moved a little while taking the printer out (real, acceptable); #2 likely my shadow; bench clothes and the LiDAR door (B3) unchanged; boot was seen in the before video only (confirms unobserved).
 - Final count, pair02. 3D pipeline: 4 of 4 changes + boot unobserved, ~8 false alarms (shadow, bench, 6 small edges). LiDAR: printer only, 4 false alarms (2 mirror, floor, door). SceneDiff: 3 of 4, ~9 false alarms (bench, walls, doors).
 - New failure source: a shadow made a pi3 "added" blob, so the plain-video map is not fully lighting-immune (pi3 depth comes from pixels). The LiDAR map is.
 
@@ -324,7 +324,7 @@ Runs: outputs/s18 (S18 + S19), outputs/s20, outputs/s21 (S20 crops relabelled). 
 | S21 named question | 5/6 | 8 | 4/4 | 12 |
 
 - S18 adopted: merging is report-level only (benchmark export untouched). The printer and box ground truths are 24 cm apart, so with a 0.3 m radius the same entries hit both; not a merge error (it was so before).
-- S19 names on the 9 found true changes: black suitcase, white towels (blanket), black wallet (pouch), straw hat, black book (blue tool: wrong), printer, box (only 'printer box', low), gray hat (cap), white shoe. 6 clearly right, blanket and box for the user to judge.
+- S19 names on the 9 found true changes: black suitcase, white towels (blanket), black wallet (pouch), straw hat, black book (blue tool: wrong), printer, box (only 'printer box', low), gray hat (cap), white shoe. 6 clearly right, blanket and box borderline.
 - The verdict is the weak part. One crop pair, a 3-vote majority and a named question each flip one item on 9 true changes: the confident cut is at the noise level of 2 rooms. Qwen2.5-VL-7B's yes/no is biased by the wording (generic question: mostly 'no'; named question: mostly 'gone').
 - The pen is never detected (outside every blob), so pair01 stays 5/6.
 - S17's shoe 'yes' was luck: the same question on a crop moved by a few pixels says 'no'.
