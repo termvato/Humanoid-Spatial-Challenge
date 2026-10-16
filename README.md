@@ -1,5 +1,7 @@
 # What changed in the room?
 
+[![ci](https://github.com/termvato/Humanoid-Spatial-Challenge/actions/workflows/ci.yml/badge.svg)](https://github.com/termvato/Humanoid-Spatial-Challenge/actions/workflows/ci.yml)
+
 Two phone videos of the same room, before and after. `roomdiff` builds **one 3D model from both**, finds what was **moved, added or removed**, **names** each change, and shows it in an interactive **3D viewer**. It also writes robot-ready maps: ROS occupancy grids with a change layer, and suggested places to stand for anything it could not see.
 
 ![3D viewer: bedroom pair](docs/img/demo_pair01.gif)
