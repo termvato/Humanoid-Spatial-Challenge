@@ -2,7 +2,7 @@
 
 Start here. Every other doc is linked from this page. Update the status board at the end of each work unit.
 
-## Status board (2026-10-15)
+## Status board (2026-10-16)
 
 | Area | State | Next action | Owner |
 |---|---|---|---|
@@ -14,6 +14,8 @@ Start here. Every other doc is linked from this page. Update the status board at
 | Own rooms (S18-S20, final) | pair01 5/6, 1 confident false alarm; pair02 4/4 (3 confident), 2 confident false alarms | | done |
 | Benchmark (S9, S17) | held-out 23.1 (typed 21.4) vs SceneDiff 32.0 (typed 15.8); 5 pairs | | done |
 | VLM verdict | noisy (S19-S21); tuning stopped (D17) | | done |
+| No-change test (S25) | FAIL: even/odd 0 confident in 4 runs; halves 6, 3, 2, 2 (D18: documented, not tuned); found and fixed a hang on zero-change runs | | done |
+| Ablation (S26) | PASS: naive diff 61/66 detections vs 24/27, held-out AP 2.4 vs 18.0; in README | | done |
 | Fold pieces into moved (S24) | not adopted: nothing to fold on 3 rooms; the suitcase grip is 21 cm off | | done |
 | README + design note | written; repo public at github.com/termvato/Humanoid-Spatial-Challenge; example input videos (720p) added, pair01 copies rerun: 5/6, 3 confident false alarms (outputs/e2e/pair01_small) | submit | user |
 | Docker image | not made: docker not installed here, untested images are not shipped | | |

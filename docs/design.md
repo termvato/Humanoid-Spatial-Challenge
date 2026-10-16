@@ -1,6 +1,6 @@
 # Design note: choices and tradeoffs
 
-Short version of `decisions.md` (D1-D17) and `spikes.md` (S1-S23). Every choice below was settled by a test whose pass/fail rule was written before it ran; several of our own ideas failed their rule and were dropped.
+Short version of `decisions.md` (D1-D18) and `spikes.md` (S1-S26). Every choice below was settled by a test whose pass/fail rule was written before it ran; several of our own ideas failed their rule and were dropped.
 
 ## The user is a robot
 
@@ -30,6 +30,11 @@ Two videos of different rooms would still produce a "change list". The run first
 - **SceneDiff benchmark** (official evaluator, object-level AP, 5 held-out pairs, 13 objects): ours 23.1 untyped / 21.4 typed vs SceneDiff 32.0 / 15.8. Better at saying *what kind* of change, worse at finding small objects. 5 pairs is too few to rank either.
 - Two pair01 false alarms are real physical changes the ground truth did not list: the curtain hem lies differently (reported as a 0.78 m move) and a soft bag was ruffled when the pouch was taken out of it. Geometry sees a reshaped soft object as removed + added. They are still counted as false alarms.
 - Our rooms were used to develop the false-alarm steps, so they are development data, not a clean test. The carving and detection steps were also checked on the SceneDiff benchmark's held-out pairs, and rules that only helped our rooms were dropped (S13, S15, S24). The list-cleaning steps (fragment merging, names, the before/after vote: S18-S20) were tested on our two rooms only, so their gains there may not carry over.
+
+## Checks that the method works
+
+- **Ablation (S26).** Same reconstructions and later steps, change test swapped for a naive point-distance diff: our rooms go from 24 and 27 detections to 61 and 66, with fewer changes found and the right kind for only 1 of them; held-out SceneDiff obj/sc AP falls from 18.0 to 2.4. Carving is what separates real changes from viewpoint and coverage.
+- **No-change test (S25).** Each own video split in two: even vs odd frames gives 0 confident changes in all 4 runs; first vs second half (different stretches of one walk) gives 2 to 6. The rule (0 everywhere) failed; not tuned on 4 runs (D18). The test also found and fixed a hang on runs with no changes.
 
 ## Tradeoffs we chose
 

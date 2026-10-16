@@ -95,3 +95,9 @@ Evidence: docs/spikes.md S5 + S9.
 - S19-S21 showed the 7B VLM's yes/no flips one item in 9 true changes whatever the wording: tuning on 2 rooms is noise. User: "We aren't going to improve VLMs."
 - Kept: S18 merging, S19 views and names, S20 majority verdict (the white shoe in pair02 is listed as low confidence, not deleted). Final own-pair runs: outputs/s20.
 - Remaining work, in order: 3D viewer per pair (the brief's "visualize in 3D"), a local web page to upload two videos and run, a check that refuses two videos of different rooms, README and design note.
+
+## D18. Halves no-change false alarms documented, not tuned (2026-10-16)
+- S25: the pipeline is clean when nothing changed and the two walks follow the same path (even/odd frames: 0 confident changes in 4 runs), but reports 2-6 confident false changes when the two "visits" are different stretches of one walk.
+- Not fixed today: 4 runs, no single cause, and any rule tuned on them would be fitted to them. Listed in the README limitations with the numbers.
+- S26 kept as the evidence that carving, not later filtering, is what separates real changes from viewpoint and coverage differences.
+

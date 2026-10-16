@@ -57,6 +57,8 @@ Each spike has a pass/fail rule written BEFORE running it, so the result decides
 | S22 | Image check for two different rooms (DINOv2 frame matching) | rule failed, step 1 kept | Same room min 0.631, different max 0.593 (pair01 vs a benchmark bedroom): gap 0.038 < 0.05. Refusing below 0.45 never refuses a same-room pair and stops clear cases before any 3D spend |
 | S23 | 3D overlap after pi3 for the grey zone | rule failed, kept as a warning | Different rooms 0.00-0.215, same room 0.605+ except the benchmark gas station (0.074). Below 0.40: warn, do not refuse |
 | S24 | Fold pieces into moved objects | not adopted | Nothing within 10 cm on pair01, pair02 or the sim room. The suitcase 'handle' is its grip, 21 cm above the case box: the thin rods between were not reconstructed |
+| S25 | No-change test (even/odd frames, first/second half of each own video) | **FAIL** | Even vs odd: 0 confident changes in all 4 (1 low-confidence in total). First vs second half: 6, 3, 2, 2 confident false changes. Also found a real bug: a run with no changes never finished (fixed) |
+| S26 | Ablation: carving vs a naive point-distance diff | **PASS** | Own rooms: 24 vs 61 and 27 vs 66 detections, found 5/6 vs 4/6 and 4/4 vs 3/4, right kind 5 vs 1 and 3 vs 1. Held-out SceneDiff (no VLM): obj/sc AP 18.0 vs 2.4 |
 | S15 | Minimum object size | not adopted | Only 4 voxels keeps tuning AP (33.9); 6+ voxels cost 3+ AP. The benchmark is full of small objects; size cannot be the false-alarm filter |
 
 Code tidy (2026-10-12): rejected options removed from the code (git history keeps them); one pipeline for video and LiDAR (`roomdiff.pipeline`). Re-running the final settings reproduced the tuning result exactly (34.33 / 23.56) and S5 pi3 (ATE 4.2 cm, AbsRel 0.032). Tool names in older entries below may no longer exist.
@@ -349,3 +351,33 @@ Scores in outputs/s24/scores.json. Fold applied to saved change lists (report-le
 Two pair01 detections that are physical changes but not in the ground truth (written before any run):
 - #16 'white curtain', moved 0.78 m, confident: the crops show the hem lying differently on the floor between the visits, a real change of shape (a draft or brushing past it). Matching treats a reshaped soft object as removed + added + similar, so it is reported as a move. Still scored as a false alarm.
 - The user saw a false alarm at the black bag on the floor, which was ruffled when the pouch was taken out of it. Same mechanism: a soft object changed shape. Not tied to a detection id here.
+
+
+### S25: no-change test (2026-10-16)
+
+Runs: outputs/s25/<video>_<split>/ (summary.json each; outputs/s25/summary.json). Full public-page pipeline on Modal (150-frame cap, room check, VLM), original phone videos split with ffmpeg. ~$5 including a rerun after the bug fix below.
+
+| Split | pair01 v1 | pair01 v2 | pair02 v1 | pair02 v2 |
+|---|---|---|---|---|
+| even vs odd frames: confident / low | 0 / 0 | 0 / 1 | 0 / 0 | 0 / 0 |
+| first vs second half: confident / low | 6 / 32 | 3 / 23 | 2 / 27 | 2 / 10 |
+| first vs second half: 3D overlap | 0.78 | 0.71 | 0.57 | 0.73 |
+
+- Rule failed on the halves. Even/odd (same path, frames 33 ms apart) is the self-test other submissions report; it is clean.
+- The halves are a harder input than the capture guide asks for: each half covers a different stretch of the room (overlap 0.57-0.78 vs 0.92 for pair01). Confident false changes are mostly the suitcase (removed + added, or moved) and furniture edges; they do not track the overlap, so there is no cheap rule to fix them. Not tuned on these 4 runs.
+- Bug found by this test and fixed: with zero changes the naming step raised SystemExit, which the job runners did not catch, so the page and the CLI waited forever. Naming now skips empty runs, and both job runners turn any job still marked running at the end into "failed" (commit e7137e7, tests added).
+
+
+### S26: carving vs a naive point-distance diff (2026-10-16)
+
+Same pi3 reconstructions (outputs/recon), same ICP, SAM, DINOv2 matching and merging; only the change test differs (`--naive`: a voxel is changed when one visit has a point there and the other has none within one voxel). No VLM. Run on Modal (`infra/modal_ablation.py`, A10G, ~$1); results in outputs/s26.
+
+| | Carving (shipped) | Naive diff |
+|---|---|---|
+| pair01: detections / found / right kind | 24 / 5 of 6 / 5 | 61 / 4 of 6 / 1 |
+| pair02: detections / found / right kind | 27 / 4 of 4 / 3 | 66 / 3 of 4 / 1 |
+| held-out SceneDiff, 5 pairs: obj/sc AP (typed) | **18.0** (12.6) | 2.4 (2.1) |
+| held-out SceneDiff: px/im IoU, obj/im AP | 30.9, 22.1 | 16.1, 11.0 |
+
+- Rule passed: carving reports 39-41% of naive's detections, finds more, and its AP is 7x higher. The carving arm reproduces the earlier held-out run (test_dino5) exactly.
+- The naive diff can never say "unobserved": every surface one visit saw and the other did not becomes a change, and the real changes drown (move pairing and kinds collapse: right kind 1 of 4-5).

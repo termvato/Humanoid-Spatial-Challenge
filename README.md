@@ -102,7 +102,32 @@ A camera ray that passes through a voxel proves that voxel empty. Comparing what
 - 5 benchmark pairs are too few to rank the two methods.
 - Every number comes from a test with its rule written in advance: [docs/spikes.md](docs/spikes.md).
 
+### Does carving matter? (ablation, S26)
+
+Same reconstructions and the same later steps (ICP, SAM, DINOv2 move matching); only the change test is swapped for a naive point-distance diff ("a point with no point of the other video within one voxel"). No VLM in either arm.
+
+| | Carving (roomdiff) | Naive diff |
+|---|---|---|
+| pair01: detections / changes found / right kind | **24** / **5 of 6** / **5** | 61 / 4 of 6 / 1 |
+| pair02: detections / changes found / right kind | **27** / **4 of 4** / **3** | 66 / 3 of 4 / 1 |
+| SceneDiff, 5 held-out pairs: obj/sc AP (typed) | **18.0** (12.6) | 2.4 (2.1) |
+
+The naive diff calls everything one video saw and the other did not a change, so the real changes drown and moves fall apart. Carving says "unobserved" instead.
+
+### When nothing changed (S25)
+
+Each of our four videos split into two "visits" and run through the full public pipeline:
+
+| Split | Confident changes reported (truth: 0) |
+|---|---|
+| even vs odd frames (same path) | **0, 0, 0, 0** |
+| first half vs second half (different stretches of one walk) | 6, 3, 2, 2 |
+
+Clean when both walks cover the same space, as the recording tips ask. When the two walks see the room from different stretches, false changes appear, mostly on the suitcase and furniture edges. This test also found a bug (a run with no changes never finished), now fixed.
+
 ## Limitations
+
+- When the two videos cover different parts of the room, expect a few false changes (S25 halves: 2 to 6).
 
 - Small objects (a pen) can be missed. Some names are wrong (the blue tool is called "black book").
 - The VLM's before/after check is noisy, so low-confidence changes are listed, not hidden.
