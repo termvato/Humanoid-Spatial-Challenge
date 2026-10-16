@@ -16,7 +16,7 @@ Two phone videos of the same room, before and after. `roomdiff` builds **one 3D 
 You need [uv](https://docs.astral.sh/uv/) and `ffmpeg`. uv installs Python 3.12 and every dependency from `uv.lock`.
 
 ```bash
-git clone https://github.com/termvato/humanoid-spatial-challenge && cd humanoid-spatial-challenge
+git clone https://github.com/termvato/Humanoid-Spatial-Challenge && cd Humanoid-Spatial-Challenge
 uv sync --group gpu
 ```
 
