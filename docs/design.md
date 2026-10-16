@@ -41,7 +41,7 @@ Two videos of different rooms would still produce a "change list". The run first
 - **Offline, two visits.** Minutes per pair on an A100. Real time and long-term memory are product work, not a 4-day challenge.
 - **Scale from phone height.** Plain video has no metric scale; we assume the phone is held 1.5 m above the floor (1.9% too large on pair01, checked against ARKit; one room). A robot with depth or odometry would give exact scale.
 - **The VLM is the weak link.** Its yes/no answer flips with the wording or a few pixels of crop (S19-S21). We stopped tuning it on 2 rooms (D17); it ranks changes but never deletes one.
-- **Mirrors** fool every depth source, including LiDAR (S11). Not handled; see `ideas.md`.
+- **Mirrors** fool every depth source, including LiDAR (S11). Not handled.
 - **Frame budget.** pi3 memory grows with frames (16 GB for 243). The public demo caps 150 frames per video.
 
 ## What we tried and dropped

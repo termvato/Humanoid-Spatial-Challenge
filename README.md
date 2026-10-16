@@ -146,6 +146,8 @@ Clean when both walks cover the same space, as the recording tips ask. When the 
 | `infra/` | Modal apps: `modal_app.py` (pipeline + public page), benchmark and model-comparison runners |
 | `tools/` | development and benchmark scripts |
 | `tests/` | `uv run pytest` |
-| `docs/` | design note, decisions, tests with pre-written rules, research notes |
+| `docs/` | design note, decisions, tests with pre-written rules |
 
 Models: pi3 (yyfz/Pi3), SAM ViT-H (Apache 2.0), DINOv2 (Apache 2.0), Qwen2.5-VL-7B-Instruct (Apache 2.0). See each project for its licence and weight terms.
+
+Reconstruction preprocessing (frame sizing, focal solver) follows SceneDiff's `utils.py` (MIT, Yuqun Wu), whose focal solver comes from MoGe (MIT, Microsoft).
