@@ -15,7 +15,7 @@ import numpy as np
 from scipy import ndimage
 
 from roomdiff.frames import Frames, incidence_cos
-from roomdiff.visibility import LABELS, Grid, classify, compare, components, observe
+from roomdiff.visibility import FREE, LABELS, OCC, Grid, classify, compare, components, observe
 
 MAX_VOXELS = 200_000_000  # dense label arrays only; carving is sparse
 SLANT_COS_MIN = 0.1  # free margin at most 10 tau
@@ -80,9 +80,11 @@ def carve(frames: Frames, centres: np.ndarray, tau: float, max_incidence: float 
 
 def build(before: Frames, after: Frames, voxel: float, tau: float | None = None, min_voxels: int = 15,
           min_views: int = 2, bounds_pct: float = 1.0, max_incidence: float | None = None,
-          slant: bool = False, footprint: bool = False) -> ChangeMap:
+          slant: bool = False, footprint: bool = False, naive: bool = False) -> ChangeMap:
     """Change map of two visits in one world frame. `tau` defaults to one voxel; see `carve` for
-    max_incidence, slant and footprint (free only if the whole voxel is seen past)."""
+    max_incidence, slant and footprint (free only if the whole voxel is seen past). `naive` (S26
+    ablation): no ray evidence; a voxel is occupied where a visit has a point and empty everywhere
+    else, so changed = a point with no point of the other visit within one voxel."""
     tau = voxel if tau is None else tau
     pts = np.concatenate([frame_points(f, i, step=2) for f in (before, after) for i in range(len(f))])
     lo, hi = np.percentile(pts, bounds_pct, axis=0), np.percentile(pts, 100 - bounds_pct, axis=0)
@@ -98,8 +100,17 @@ def build(before: Frames, after: Frames, voxel: float, tau: float | None = None,
     n = int(np.prod(grid.shape))
     sb = np.zeros(n, np.uint8)
     sa = np.zeros(n, np.uint8)
-    sb[cand] = classify(*carve(before, centres, tau, max_incidence, slant, voxel if footprint else None), min_views=min_views)
-    sa[cand] = classify(*carve(after, centres, tau, max_incidence, slant, voxel if footprint else None), min_views=min_views)
+    if naive:
+        for f, state in ((before, sb), (after, sa)):
+            idx = grid.index(np.concatenate([frame_points(f, i, step=2) for i in range(len(f))]))
+            occ = np.zeros(n, bool)
+            occ[idx[idx >= 0]] = True
+            state[cand] = np.where(occ[cand], OCC, FREE)
+    else:
+        sb[cand] = classify(*carve(before, centres, tau, max_incidence, slant, voxel if footprint else None),
+                            min_views=min_views)
+        sa[cand] = classify(*carve(after, centres, tau, max_incidence, slant, voxel if footprint else None),
+                            min_views=min_views)
     lab = compare(sb, sa, grid.shape)
     blobs = []
     for kind in ("removed", "added"):

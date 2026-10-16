@@ -34,3 +34,11 @@ def test_write_page_embeds_data(tmp_path):
     p = write_page(_result(tmp_path), "t")
     html = p.read_text()
     assert "/*DATA*/" not in html and '"suitcase"' in html
+
+
+def test_page_with_no_changes(tmp_path):
+    r = _result(tmp_path)
+    (r / "changes.json").write_text("[]")
+    d = page_data(r, "t")
+    assert d["changes"] == [] and d["subtitle"].startswith("0 moved, 0 added")
+    assert "/*DATA*/" not in write_page(r, "t").read_text()

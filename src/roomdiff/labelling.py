@@ -32,9 +32,12 @@ def label_result(result: Path, ask: Callable[[list[list[bytes]], str], list[str]
             other[key][int(k[:-1])] = p
         else:
             groups[key].append(p)
-    if not groups:
-        raise SystemExit(f"no crops in {result / 'crops'}: rerun tools/analyse.py")
     chs = json.loads((result / "changes.json").read_text())
+    if not chs:  # nothing changed: nothing to name
+        (result / "labels.json").write_text(json.dumps({"names": {}, "compare": []}))
+        return chs
+    if not groups:
+        raise RuntimeError(f"no crops in {result / 'crops'}: rerun tools/analyse.py")
     kinds = {}  # blob -> removed / added
     for c in chs:
         for b in c["blobs"]:

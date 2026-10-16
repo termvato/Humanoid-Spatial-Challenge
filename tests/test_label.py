@@ -62,3 +62,14 @@ def test_majority():
     assert majority([True, False]) is True  # tie counts as changed
     assert majority([None, True]) is True and majority([None]) is None and majority([]) is None
 
+
+
+def test_label_result_with_no_changes_asks_nothing(tmp_path):
+    from roomdiff.labelling import label_result
+
+    (tmp_path / "changes.json").write_text("[]")
+
+    def ask(items, prompt):
+        raise AssertionError("no VLM call expected")
+    assert label_result(tmp_path, ask) == []
+    assert (tmp_path / "labels.json").exists()

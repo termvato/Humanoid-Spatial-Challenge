@@ -99,3 +99,11 @@ def test_drop_small_by_extent_in_voxels():
     side = b.size.max() / cm.grid.size  # largest side in voxels
     assert drop_small(views, cm, side - 0.5) == views
     assert drop_small(views, cm, side + 0.5) == {}
+
+
+def test_naive_diff_calls_the_revealed_wall_added():
+    """S26 ablation: without ray evidence, the wall the box hid before (seen only after) is 'added'."""
+    cm = build(_frames(True, 1), _frames(False, 2), voxel=0.1, min_voxels=5, naive=True)
+    added = [b for b in cm.blobs if b.kind == "added"]
+    assert added and all(b.centre[2] > 3.5 or b.centre[1] > 0.9 for b in added)  # back wall or floor
+    assert any(b.kind == "removed" for b in cm.blobs)

@@ -68,6 +68,8 @@ def pipeline(job: str, name1: str, name2: str, max_frames: int = MAX_FRAMES) -> 
     except Exception as e:  # noqa: BLE001 (reported to the page)
         state.update(state="failed", error=f"{type(e).__name__}: {e}")
     finally:
+        if state["state"] == "running":  # anything not caught above must not leave the page waiting
+            state.update(state="failed", error="the run stopped unexpectedly")
         shutil.rmtree(out / "input", ignore_errors=True)  # do not keep people's videos
         for big in ("recon.npz", "points.npz"):
             (out / big).unlink(missing_ok=True)

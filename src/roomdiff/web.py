@@ -57,6 +57,9 @@ class LocalJobs:
                 st.update(state="refused", error=str(e))
             except Exception as e:  # noqa: BLE001 (shown on the page; the server keeps running)
                 st.update(state="failed", error=f"{type(e).__name__}: {e}")
+            finally:
+                if st["state"] == "running":  # anything not caught above must not leave the page waiting
+                    st.update(state="failed", error="the run stopped unexpectedly")
 
     def status(self, job: str) -> dict | None:
         return self.state.get(job)

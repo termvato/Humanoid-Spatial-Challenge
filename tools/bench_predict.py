@@ -63,6 +63,7 @@ def main() -> None:
     ap.add_argument("--max-incidence", type=float, default=0.0, help="no free evidence beyond this angle (0 = off)")
     ap.add_argument("--slant", action="store_true", help="free margin measured along the surface normal")
     ap.add_argument("--footprint", action="store_true", help="free only if the whole voxel is seen past")
+    ap.add_argument("--naive", action="store_true", help="S26 ablation: point-distance diff instead of carving")
     ap.add_argument("--min-extent", type=float, default=0.0, help="drop blobs whose largest side is under this many voxels")
     ap.add_argument("--vlm-rescore", type=float, default=0.1,
                     help="score factor for blobs the VLM before/after check judges unchanged (S17; 0 = no VLM)")
@@ -77,12 +78,12 @@ def main() -> None:
         pair = run(args.recon_dir / f"{args.model}_{scene}.npz", div=args.div, min_voxels=args.min_voxels,
                    icp=not args.no_icp, min_conf=args.min_conf,
                    max_incidence=args.max_incidence or None, slant=args.slant,
-                   footprint=args.footprint)
+                   footprint=args.footprint, naive=args.naive)
         # SAM masks are the slow part: cached per scene and setting (name kept from the S9 sweeps)
         cache = Path("outputs/s9/cache") / (f"{args.model}_{scene}_d{args.div:g}_v{args.min_voxels}_g0"
                                             f"_c{args.min_conf:g}_{'none' if args.no_sam else 'sam'}"
                                             f"{'' if args.no_icp else '_icp'}{f'_i{args.max_incidence:g}' if args.max_incidence else ''}"
-                                            f"{'_slant' if args.slant else ''}{'_fp' if args.footprint else ''}.pkl")
+                                            f"{'_slant' if args.slant else ''}{'_fp' if args.footprint else ''}{'_naive' if args.naive else ''}.pkl")
         if cache.exists():
             views = pickle.loads(cache.read_bytes())
         else:

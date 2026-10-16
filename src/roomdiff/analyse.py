@@ -115,7 +115,7 @@ def overlap_3d(pair: Pair) -> float:
 
 
 def analyse(input: Path, out: Path, metric: bool = False, scale_arg: float = 0.0, div: float = 80,
-            no_icp: bool = False, no_sam: bool = False, max_incidence: float = 0.0, plain_carving: bool = False,
+            no_icp: bool = False, no_sam: bool = False, max_incidence: float = 0.0, plain_carving: bool = False, naive: bool = False,
             min_extent: float = 0.0, match: float = 0.5, cell: float = 0.05, band: tuple[float, float] = (0.10, 1.80),
             camera_height: float = 1.0, progress: Callable[[str], None] = lambda s: None) -> dict:
     """Run the pipeline on `input` (recon npz or Stray pair folder) and write everything into `out`.
@@ -125,7 +125,7 @@ def analyse(input: Path, out: Path, metric: bool = False, scale_arg: float = 0.0
     lidar = input.is_dir()
     progress("3D change map")
     pair = run_lidar(input) if lidar else run(input, div=div, icp=not no_icp, max_incidence=max_incidence or None,
-                                              slant=not plain_carving, footprint=not plain_carving)
+                                              slant=not plain_carving, footprint=not plain_carving, naive=naive)
     progress("level")
     T, scale = level(pair, metric=lidar or metric, scale=scale_arg)
     F, cm = pair.frames, pair.cm
